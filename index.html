@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="DECA Finance" />
+  <title>DECA Finance Study App</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#00236f", "on-primary": "#ffffff",
+            "primary-container": "#1e3a8a", "on-primary-container": "#90a8ff",
+            "primary-fixed": "#dce1ff", "primary-fixed-dim": "#b6c4ff",
+            "secondary": "#006c4a", "on-secondary": "#ffffff",
+            "secondary-container": "#82f5c1", "on-secondary-container": "#00714e",
+            "secondary-fixed": "#85f8c4", "secondary-fixed-dim": "#68dba9",
+            "tertiary": "#442100", "on-tertiary": "#ffffff",
+            "tertiary-container": "#653400", "on-tertiary-container": "#fc922b",
+            "tertiary-fixed": "#ffdcc3", "tertiary-fixed-dim": "#ffb77d",
+            "on-tertiary-fixed-variant": "#6e3900",
+            "error": "#ba1a1a", "on-error": "#ffffff",
+            "error-container": "#ffdad6", "on-error-container": "#93000a",
+            "background": "#faf8ff", "on-background": "#1a1b21",
+            "surface": "#faf8ff", "on-surface": "#1a1b21",
+            "surface-variant": "#e3e1e9", "on-surface-variant": "#444651",
+            "outline": "#757682", "outline-variant": "#c5c5d3",
+            "inverse-surface": "#2f3036", "inverse-on-surface": "#f1f0f7",
+            "inverse-primary": "#b6c4ff",
+            "surface-dim": "#dad9e1", "surface-bright": "#faf8ff",
+            "surface-container-lowest": "#ffffff",
+            "surface-container-low": "#f4f3fa",
+            "surface-container": "#eeedf4",
+            "surface-container-high": "#e9e7ef",
+            "surface-container-highest": "#e3e1e9",
+            "surface-tint": "#4059aa",
+          },
+          fontFamily: { sans: ["Inter", "sans-serif"] },
+          borderRadius: { DEFAULT: "0.25rem", lg: "0.5rem", xl: "0.75rem", "2xl": "1rem", "3xl": "1.5rem", full: "9999px" },
+        },
+      },
+    }
+  </script>
+  <style>
+    .material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 24; font-size:24px; line-height:1; vertical-align:middle; display:inline-block; }
+    .sym-filled { font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24 !important; }
+    body { font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased; overscroll-behavior:none; }
+    *{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+    #root { max-width:430px; margin:0 auto; min-height:100dvh; background:#faf8ff; position:relative; overflow:hidden; }
+    .no-scrollbar::-webkit-scrollbar{display:none}
+    .no-scrollbar{-ms-overflow-style:none;scrollbar-width:none}
+  </style>
+</head>
+<body class="bg-background min-h-screen">
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+</html>
