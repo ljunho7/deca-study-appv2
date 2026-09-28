@@ -429,6 +429,28 @@ export default function Exam({ user, data }) {
         </div>
       </div>
 
+      {selected && (
+        <div className="px-5 pt-4 pb-3 bg-surface-container-low border-b border-surface-container">
+          {right ? (
+            <>
+              <p className="text-center text-xs font-semibold text-on-surface-variant mb-2">✓ Correct. How did that feel?</p>
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={() => next('hard')}
+                  className="py-3.5 bg-tertiary-fixed text-on-tertiary-fixed-variant rounded-2xl font-bold text-sm active:scale-95 transition-all">Hard</button>
+                <button onClick={() => next('easy')}
+                  className="py-3.5 bg-secondary text-on-secondary rounded-2xl font-bold text-sm shadow-lg shadow-secondary/20 active:scale-95 transition-all">Easy ✓</button>
+              </div>
+            </>
+          ) : (
+            <button onClick={() => next(null)}
+              className="w-full bg-primary text-on-primary font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-primary/20">
+              ✗ Incorrect. Next question
+              <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="px-5 pt-6 pb-6 flex-1">
         <div className="flex items-center gap-2 mb-3">
           {statusOf(qprog[q.id]) !== 'new' && (
@@ -486,25 +508,6 @@ export default function Exam({ user, data }) {
           </div>
         )}
 
-        {selected && right && (
-          <div className="mt-6">
-            <p className="text-center text-xs text-on-surface-variant mb-2">How did that feel?</p>
-            <div className="grid grid-cols-2 gap-3">
-              <button onClick={() => next('hard')}
-                className="py-4 bg-tertiary-fixed text-on-tertiary-fixed-variant rounded-2xl font-bold text-sm active:scale-95 transition-all">Hard</button>
-              <button onClick={() => next('easy')}
-                className="py-4 bg-secondary text-on-secondary rounded-2xl font-bold text-sm shadow-lg shadow-secondary/20 active:scale-95 transition-all">Easy ✓</button>
-            </div>
-          </div>
-        )}
-
-        {selected && !right && (
-          <button onClick={() => next(null)}
-            className="mt-6 w-full bg-primary text-on-primary font-bold py-4 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-primary/20">
-            Next question
-            <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
-          </button>
-        )}
       </div>
     </div>
   )
