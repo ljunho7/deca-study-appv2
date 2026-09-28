@@ -95,12 +95,10 @@ export default function Flashcards({ user, data }) {
       s.flashcards = newProg
       localStorage.setItem(PROG_KEY, JSON.stringify(s))
     } catch {}
+    // Save to the server right away after every answer. If it fails, the
+    // 30 s timer and the tab-hide beacon retry with the latest progress.
     pendingRef.current = newProg
-    setSync('unsaved')
-    clearTimeout(pendingRef._t)
-    pendingRef._t = setTimeout(() => {
-      if (pendingRef.current) { push(pendingRef.current); pendingRef.current = null }
-    }, 3000)
+    push(newProg).then(() => { if (pendingRef.current === newProg) pendingRef.current = null })
   }, [PROG_KEY])
 
   function chapterCards(ch) {
