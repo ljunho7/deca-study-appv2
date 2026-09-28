@@ -1,14 +1,7 @@
 import { useState, useEffect } from 'react'
-import { getLeaderboard } from '../lib/storage.js'
 
-const AVATAR_COLORS = [
-  'bg-blue-600','bg-emerald-600','bg-violet-600','bg-rose-600',
-  'bg-amber-600','bg-cyan-600','bg-pink-600','bg-indigo-600'
-]
-const getAvatarColor = name => AVATAR_COLORS[name.charCodeAt(0) % AVATAR_COLORS.length]
-const initials = name => name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
-
-const TIERS = ['TOP SCHOLAR', 'RISING STAR', 'SCHOLAR', 'STUDENT', 'STUDENT']
+const cardStatus = p => !p ? 'new' : (p.status === 'known' ? 'known' : 'forgot')
+const qStatus    = p => !p ? 'new' : (p.status || 'new')
 
 function daysUntil(dateStr) {
   const target = new Date(dateStr)
@@ -16,46 +9,53 @@ function daysUntil(dateStr) {
   return Math.max(0, Math.ceil((target - now) / (1000 * 60 * 60 * 24)))
 }
 
-export default function Home({ user, onTabChange }) {
-  const [leaderboard, setLeaderboard] = useState([])
-  const [stats, setStats]             = useState({ known: 0, examAvg: 0, examCount: 0, rank: 0 })
-  const [loading, setLoading]         = useState(true)
+export default function Home({ user, onTabChange, cards, questions }) {
+  const [prog, setProg] = useState({})
 
   // ICDC 2026 approximate date
   const daysToICDC = daysUntil('2026-04-26')
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
 
   useEffect(() => {
-    // Local stats
-    try {
-      const prog = JSON.parse(localStorage.getItem(`deca_progress_${user.key}`) || '{}')
-      const cards = prog.flashcards || {}
-      const known = Object.values(cards).filter(c => c.status === 'known').length
-      const exams = prog.exams || []
-      const examAvg = exams.length
-        ? Math.round(exams.slice(-5).reduce((s, e) => s + e.pct, 0) / Math.min(exams.length, 5))
-        : 0
-      setStats(s => ({ ...s, known, examAvg, examCount: exams.length }))
-    } catch {}
+    try { setProg(JSON.parse(localStorage.getItem(`deca_progress_${user.key}`) || '{}')) } catch {}
+  }, [user.key])
 
-    getLeaderboard().then(lb => {
-      setLeaderboard(lb || [])
-      const rank = (lb || []).findIndex(e => e.user === user.name) + 1
-      setStats(s => ({ ...s, rank }))
-      setLoading(false)
-    }).catch(() => setLoading(false))
-  }, [user.key, user.name])
+  const fc = prog.flashcards || {}
+  const qp = prog.questions || {}
+  const cardList = cards || []
+  const qList    = questions || []
+  const cKnown  = cardList.filter(c => cardStatus(fc[c.id]) === 'known').length
+  const cForgot = cardList.filter(c => cardStatus(fc[c.id]) === 'forgot').length
+  const cNew    = cardList.length - cKnown - cForgot
+  const qInc    = qList.filter(q => qStatus(qp[q.id]) === 'incorrect').length
+  const qHard   = qList.filter(q => qStatus(qp[q.id]) === 'hard').length
+  const qEasy   = qList.filter(q => qStatus(qp[q.id]) === 'easy').length
+  const qNew    = qList.length - qInc - qHard - qEasy
+  const pctOf   = (n, t) => t ? (n / t * 100) : 0
 
-  const statCards = [
-    { label: 'CARDS KNOWN',    value: stats.known,     suffix: stats.known > 0 ? '' : '',     color: 'text-on-surface' },
-    { label: 'AVG EXAM SCORE', value: stats.examAvg > 0 ? `${stats.examAvg}%` : '—', color: 'text-on-surface' },
-    { label: 'EXAMS TAKEN',    value: stats.examCount,  color: 'text-on-surface' },
-    { label: 'TEAM RANK',      value: stats.rank > 0 ? `#${stats.rank}` : '—', color: stats.rank === 1 ? 'text-tertiary-container' : 'text-on-surface' },
+  const dashboards = [
+    {
+      tab: 'cards', icon: 'style', title: 'Cards', total: cardList.length,
+      segments: [
+        { label: 'known',  val: cKnown,  bar: 'bg-secondary', text: 'text-secondary' },
+        { label: 'forgot', val: cForgot, bar: 'bg-error',     text: 'text-error' },
+      ],
+      newVal: cNew,
+    },
+    {
+      tab: 'exam', icon: 'edit_note', title: 'Exam', total: qList.length,
+      segments: [
+        { label: 'easy',      val: qEasy, bar: 'bg-secondary',         text: 'text-secondary' },
+        { label: 'hard',      val: qHard, bar: 'bg-tertiary-container', text: 'text-tertiary-container' },
+        { label: 'incorrect', val: qInc,  bar: 'bg-error',             text: 'text-error' },
+      ],
+      newVal: qNew,
+    },
   ]
 
   const features = [
     { tab: 'cards',   icon: 'style',      color: 'bg-primary/10 text-primary',    title: 'Flashcards',     sub: '1,324 terms • New, Forgot, Known filters' },
-    { tab: 'exam',    icon: 'edit_note',  color: 'bg-secondary/10 text-secondary', title: 'Practice exam',  sub: '3,564 questions • Timed mode' },
+    { tab: 'exam',    icon: 'edit_note',  color: 'bg-secondary/10 text-secondary', title: 'Practice exam',  sub: '3,564 questions • New, Incorrect, Hard, Easy filters' },
     { tab: 'pi',      icon: 'fact_check', color: 'bg-tertiary/10 text-tertiary',   title: 'PI tracker',     sub: 'Coverage map • Shared with team' },
   ]
 
@@ -92,14 +92,42 @@ export default function Home({ user, onTabChange }) {
         </div>
       </div>
 
-      {/* Stat cards */}
-      <div className="px-5 mt-4 grid grid-cols-2 gap-3">
-        {statCards.map(({ label, value, color }) => (
-          <div key={label} className="bg-surface-container-lowest rounded-2xl p-4 shadow-[0px_2px_8px_rgba(26,27,33,0.04)]">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-outline mb-1">{label}</p>
-            <p className={`text-[28px] font-black tracking-tighter ${color}`}>{value}</p>
-          </div>
-        ))}
+      {/* Progress dashboards */}
+      <div className="px-5 mt-4 space-y-3">
+        {dashboards.map(d => {
+          const done = d.total - d.newVal
+          return (
+            <button key={d.tab} onClick={() => onTabChange(d.tab)}
+              className="w-full text-left bg-surface-container-lowest rounded-2xl p-4 shadow-[0px_2px_8px_rgba(26,27,33,0.04)] active:bg-surface-container-low transition-colors">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined sym-filled text-primary text-[20px]">{d.icon}</span>
+                  <span className="text-[15px] font-black text-on-surface">{d.title}</span>
+                </div>
+                <span className="text-xs text-on-surface-variant">
+                  <span className="font-bold text-on-surface">{done.toLocaleString()}</span> of {d.total.toLocaleString()} done
+                </span>
+              </div>
+              <div className={`grid gap-2 mb-3 ${d.segments.length === 2 ? 'grid-cols-4' : 'grid-cols-5'}`}>
+                {[
+                  { label: 'total', val: d.total, text: 'text-on-surface' },
+                  { label: 'new',   val: d.newVal, text: 'text-on-surface-variant' },
+                  ...d.segments,
+                ].map(({ label, val, text }) => (
+                  <div key={label} className="bg-surface-container-low rounded-xl py-2 text-center">
+                    <p className="text-[9px] font-bold uppercase tracking-wider text-outline mb-0.5">{label}</p>
+                    <p className={`text-base font-extrabold ${text}`}>{val.toLocaleString()}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="h-2 w-full bg-surface-container rounded-full overflow-hidden flex">
+                {d.segments.map(sg => (
+                  <div key={sg.label} className={`h-full ${sg.bar}`} style={{ width: `${pctOf(sg.val, d.total)}%` }} />
+                ))}
+              </div>
+            </button>
+          )
+        })}
       </div>
 
       {/* Jump In */}
@@ -123,45 +151,6 @@ export default function Home({ user, onTabChange }) {
         </div>
       </div>
 
-      {/* Leaderboard */}
-      <div className="px-5 mt-5">
-        <p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant mb-3">Team leaderboard</p>
-        <div className="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-[0px_2px_8px_rgba(26,27,33,0.04)]">
-          {loading && (
-            <div className="py-8 text-center text-sm text-on-surface-variant">Loading...</div>
-          )}
-          {!loading && leaderboard.length === 0 && (
-            <div className="py-8 text-center text-sm text-on-surface-variant px-4">
-              No team data yet. Take an exam to appear here!
-            </div>
-          )}
-          {leaderboard.slice(0, 5).map((entry, i) => {
-            const isMe = entry.user === user.name
-            const rankColors = ['text-amber-500', 'text-slate-400', 'text-amber-700']
-            return (
-              <div key={entry.user}
-                className={`flex items-center gap-3 px-5 py-3.5 ${i < leaderboard.slice(0,5).length - 1 ? 'border-b border-surface-container' : ''}
-                  ${isMe ? 'bg-primary/5' : ''}`}>
-                <span className={`text-sm font-black w-5 text-center ${rankColors[i] || 'text-outline'}`}>
-                  {String(i + 1).padStart(2, '0')}
-                </span>
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white text-[12px] font-black flex-shrink-0 ${getAvatarColor(entry.user)}`}>
-                  {initials(entry.user)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-bold truncate ${isMe ? 'text-primary' : 'text-on-surface'}`}>
-                    {entry.user}{isMe ? ' (You)' : ''}
-                  </p>
-                  {i < 2 && (
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">{TIERS[i]}</p>
-                  )}
-                </div>
-                <span className="text-sm font-black text-on-surface">{(entry.totalPoints || 0).toLocaleString()}</span>
-              </div>
-            )
-          })}
-        </div>
-      </div>
     </div>
   )
 }

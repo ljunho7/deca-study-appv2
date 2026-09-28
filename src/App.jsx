@@ -32,7 +32,7 @@ export default function App() {
   )
 
   const screens = {
-    home:    <Home user={user} onTabChange={setTab} />,
+    home:    <Home user={user} onTabChange={setTab} cards={flashcardsData} questions={questionsData} />,
     cards:   <Flashcards user={user} data={flashcardsData} />,
     exam:    <Exam user={user} data={questionsData} />,
     pi:      <PITracker user={user} />,
