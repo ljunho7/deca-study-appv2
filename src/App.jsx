@@ -33,7 +33,7 @@ export default function App() {
 
   const screens = {
     home:    <Home user={user} onTabChange={setTab} cards={flashcardsData} questions={questionsData} />,
-    cards:   <Flashcards user={user} data={flashcardsData} />,
+    cards:   <Flashcards user={user} data={flashcardsData} questions={questionsData} />,
     exam:    <Exam user={user} data={questionsData} cards={flashcardsData} />,
     pi:      <PITracker user={user} />,
     profile: <Profile user={user} onLogout={() => { localStorage.removeItem('deca_user'); setUser(null) }} />,

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { saveProgress, getProgress, mergeNewest } from '../lib/storage.js'
-import { flagQuestionsForReview, cardStatus } from '../lib/review.js'
+import { flagQuestionsForReview, cardStatus, questionStatus, readProgress } from '../lib/review.js'
 
 function mark(prev, quality) {
   return {
@@ -30,7 +30,7 @@ const CHAPTERS = [
   'Marketing & Strategy', 'PI & 2025 Updates',
 ]
 
-export default function Flashcards({ user, data }) {
+export default function Flashcards({ user, data, questions }) {
   const [cards, setCards]         = useState([])
   const [progress, setProgress]   = useState({})
   const [chapter, setChapter]     = useState('All chapters')
@@ -42,6 +42,7 @@ export default function Flashcards({ user, data }) {
   const [session, setSession]     = useState({ known: 0, forgot: 0, rounds: 0 })
   const [sync, setSync]           = useState('saved')
   const [notice, setNotice]       = useState('')
+  const [openQ, setOpenQ]         = useState(null)
   const pendingRef                = useRef(null)
   const PROG_KEY                  = `deca_progress_${user.key}`
 
@@ -151,11 +152,14 @@ export default function Flashcards({ user, data }) {
     setProgress(newProg)
     persist(newProg)
     setSession(s => ({ ...s, known: s.known + (quality === 2 ? 1 : 0), forgot: s.forgot + (quality === 2 ? 0 : 1) }))
+    setOpenQ(null)
     if (idx + 1 >= queue.length) nextRound(newProg)
     else { setIdx(i => i + 1); setFlipped(false) }
   }
 
   const countBy = (list, st) => list.filter(c => statusOf(progress[c.id]) === st).length
+  const qById = {}
+  for (const q of (questions || [])) qById[q.id] = q
   const allKnown   = countBy(cards, 'known')
   const chCards    = chapterCards(chapter)
   const chTotal    = chCards.length
@@ -256,9 +260,7 @@ export default function Flashcards({ user, data }) {
               <>
                 <span className="text-[11px] font-extrabold text-on-surface-variant tracking-[0.15em] uppercase mt-2">{card.term}</span>
                 <p className="text-[15px] text-on-surface leading-relaxed text-left flex-1 mt-4">{card.definition}</p>
-                {card.questions?.length > 0 && (
-                  <p className="text-[11px] text-on-surface-variant mt-4">Tested in {card.questions.length} exam question{card.questions.length > 1 ? 's' : ''}. Forgot sends them to For review.</p>
-                )}
+
               </>
             )}
           </button>
@@ -266,6 +268,7 @@ export default function Flashcards({ user, data }) {
 
         {/* Stats row */}
         {notice && <p className="px-5 mt-3 text-xs text-center text-violet-800">↻ {notice}</p>}
+
         <div className="grid grid-cols-4 gap-2 px-5 mt-3">
           {[
             { label: 'Known',  val: chKnown,  color: 'text-secondary' },
@@ -288,6 +291,44 @@ export default function Flashcards({ user, data }) {
           </div>
         )}
         {!flipped && <div className="pb-4" />}
+        {flipped && card.questions?.length > 0 && (() => {
+          const qp = readProgress(user.key).questions || {}
+          return (
+            <div className="px-5 pb-6">
+              <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/15 overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-surface-container flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary text-[16px]">edit_note</span>
+                  <span className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Related exam questions ({card.questions.length})</span>
+                </div>
+                {card.questions.map(qid => {
+                  const q = qById[qid]
+                  if (!q) return null
+                  const st = questionStatus(qp[qid])
+                  const open = openQ === qid
+                  return (
+                    <button key={qid} onClick={() => setOpenQ(open ? null : qid)}
+                      className="w-full text-left px-4 py-3 border-b border-surface-container last:border-0 active:bg-surface-container-low">
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="text-sm font-semibold text-on-surface leading-snug">{q.question}</span>
+                        <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full whitespace-nowrap
+                          ${st === 'easy' ? 'bg-secondary-container/30 text-on-secondary-container' :
+                            st === 'incorrect' ? 'bg-error-container/40 text-on-error-container' :
+                            st === 'hard' ? 'bg-tertiary-fixed text-on-tertiary-fixed-variant' :
+                            st === 'review' ? 'bg-violet-50 text-violet-800' : 'bg-surface-container text-on-surface-variant'}`}>{st}</span>
+                      </div>
+                      {open ? (
+                        <div className="mt-1.5">
+                          <p className="text-[13px] font-semibold text-secondary">Answer: {q.answer}) {q[q.answer]}</p>
+                          {q.explanation && <p className="text-[13px] text-on-surface-variant leading-relaxed mt-1">{q.explanation}</p>}
+                        </div>
+                      ) : <p className="text-[11px] text-outline mt-0.5">Tap to see the answer</p>}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
       </div>
     )
   }
