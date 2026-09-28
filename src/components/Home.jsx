@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 
-const cardStatus = p => !p ? 'new' : (p.status === 'known' ? 'known' : 'forgot')
-const qStatus    = p => !p ? 'new' : (p.status || 'new')
+import { cardStatus, questionStatus as qStatus } from '../lib/review.js'
 
 function daysUntil(dateStr) {
   const target = new Date(dateStr)
@@ -26,11 +25,13 @@ export default function Home({ user, onTabChange, cards, questions }) {
   const qList    = questions || []
   const cKnown  = cardList.filter(c => cardStatus(fc[c.id]) === 'known').length
   const cForgot = cardList.filter(c => cardStatus(fc[c.id]) === 'forgot').length
-  const cNew    = cardList.length - cKnown - cForgot
+  const cReview = cardList.filter(c => cardStatus(fc[c.id]) === 'review').length
+  const cNew    = cardList.length - cKnown - cForgot - cReview
   const qInc    = qList.filter(q => qStatus(qp[q.id]) === 'incorrect').length
   const qHard   = qList.filter(q => qStatus(qp[q.id]) === 'hard').length
   const qEasy   = qList.filter(q => qStatus(qp[q.id]) === 'easy').length
-  const qNew    = qList.length - qInc - qHard - qEasy
+  const qRev    = qList.filter(q => qStatus(qp[q.id]) === 'review').length
+  const qNew    = qList.length - qInc - qHard - qEasy - qRev
   const pctOf   = (n, t) => t ? (n / t * 100) : 0
 
   const dashboards = [
@@ -38,6 +39,7 @@ export default function Home({ user, onTabChange, cards, questions }) {
       tab: 'cards', icon: 'style', title: 'Cards', total: cardList.length,
       segments: [
         { label: 'known',  val: cKnown,  bar: 'bg-secondary', text: 'text-secondary' },
+        { label: 'review', val: cReview, bar: 'bg-violet-500', text: 'text-violet-700' },
         { label: 'forgot', val: cForgot, bar: 'bg-error',     text: 'text-error' },
       ],
       newVal: cNew,
@@ -47,6 +49,7 @@ export default function Home({ user, onTabChange, cards, questions }) {
       segments: [
         { label: 'easy',      val: qEasy, bar: 'bg-secondary',         text: 'text-secondary' },
         { label: 'hard',      val: qHard, bar: 'bg-tertiary-container', text: 'text-tertiary-container' },
+        { label: 'review',    val: qRev,  bar: 'bg-violet-500',         text: 'text-violet-700' },
         { label: 'incorrect', val: qInc,  bar: 'bg-error',             text: 'text-error' },
       ],
       newVal: qNew,
@@ -54,8 +57,8 @@ export default function Home({ user, onTabChange, cards, questions }) {
   ]
 
   const features = [
-    { tab: 'cards',   icon: 'style',      color: 'bg-primary/10 text-primary',    title: 'Flashcards',     sub: '1,324 terms • New, Forgot, Known filters' },
-    { tab: 'exam',    icon: 'edit_note',  color: 'bg-secondary/10 text-secondary', title: 'Practice exam',  sub: '3,564 questions • New, Incorrect, Hard, Easy filters' },
+    { tab: 'cards',   icon: 'style',      color: 'bg-primary/10 text-primary',    title: 'Flashcards',     sub: `${(cards || []).length.toLocaleString()} terms • linked to exam questions` },
+    { tab: 'exam',    icon: 'edit_note',  color: 'bg-secondary/10 text-secondary', title: 'Practice exam',  sub: `${(questions || []).length.toLocaleString()} questions • linked to flashcards` },
     { tab: 'pi',      icon: 'fact_check', color: 'bg-tertiary/10 text-tertiary',   title: 'PI tracker',     sub: 'Coverage map • Shared with team' },
   ]
 
@@ -108,9 +111,8 @@ export default function Home({ user, onTabChange, cards, questions }) {
                   <span className="font-bold text-on-surface">{done.toLocaleString()}</span> of {d.total.toLocaleString()} done
                 </span>
               </div>
-              <div className={`grid gap-2 mb-3 ${d.segments.length === 2 ? 'grid-cols-4' : 'grid-cols-5'}`}>
+              <div className={`grid gap-1.5 mb-3 ${d.segments.length === 3 ? 'grid-cols-4' : 'grid-cols-5'}`}>
                 {[
-                  { label: 'total', val: d.total, text: 'text-on-surface' },
                   { label: 'new',   val: d.newVal, text: 'text-on-surface-variant' },
                   ...d.segments,
                 ].map(({ label, val, text }) => (

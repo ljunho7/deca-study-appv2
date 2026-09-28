@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { saveProgress, getProgress, mergeNewest } from '../lib/storage.js'
+import { flagQuestionsForReview, cardStatus } from '../lib/review.js'
 
 function mark(prev, quality) {
   return {
@@ -9,19 +10,17 @@ function mark(prev, quality) {
   }
 }
 
-// Filter chips are toggles: any combination can be on. Default is New + Forgot.
+// Filter chips are toggles: any combination can be on. Default is New + Forgot + For review.
 const FILTERS = [
   { key: 'new',    label: 'New',    hint: 'Not reviewed yet' },
   { key: 'forgot', label: 'Forgot', hint: 'Marked Forgot last time' },
+  { key: 'review', label: 'Review', hint: 'A related exam question was missed or felt hard' },
   { key: 'known',  label: 'Known',  hint: 'Marked Got it last time' },
 ]
-const DEFAULT_FILTER = ['new', 'forgot']
+const DEFAULT_FILTER = ['new', 'forgot', 'review']
 const filterLabel = (f) => f.length === FILTERS.length ? 'all' : FILTERS.filter(x => f.includes(x.key)).map(x => x.label.toLowerCase()).join(' + ')
 
-function statusOf(p) {
-  if (!p) return 'new'
-  return p.status === 'known' ? 'known' : 'forgot'
-}
+const statusOf = cardStatus
 
 const CHAPTERS = [
   'All chapters', 'Financial Analysis', 'Financial-Information Management',
@@ -42,6 +41,7 @@ export default function Flashcards({ user, data }) {
   const [mode, setMode]           = useState('menu')
   const [session, setSession]     = useState({ known: 0, forgot: 0, rounds: 0 })
   const [sync, setSync]           = useState('saved')
+  const [notice, setNotice]       = useState('')
   const pendingRef                = useRef(null)
   const PROG_KEY                  = `deca_progress_${user.key}`
 
@@ -142,6 +142,12 @@ export default function Flashcards({ user, data }) {
   function respond(quality) {
     const card = queue[idx]
     const newProg = { ...progress, [card.id]: mark(progress[card.id] || {}, quality) }
+    // Mapping: forgetting a card sends every linked exam question to "For review".
+    // Flag first (local only), then persist, so one server save carries both.
+    if (quality !== 2 && card.questions?.length) {
+      flagQuestionsForReview(user.key, card.questions, `card:${card.id}`)
+      setNotice(`${card.questions.length} related exam question${card.questions.length > 1 ? 's' : ''} marked for review`)
+    } else setNotice('')
     setProgress(newProg)
     persist(newProg)
     setSession(s => ({ ...s, known: s.known + (quality === 2 ? 1 : 0), forgot: s.forgot + (quality === 2 ? 0 : 1) }))
@@ -155,8 +161,9 @@ export default function Flashcards({ user, data }) {
   const chTotal    = chCards.length
   const chKnown    = countBy(chCards, 'known')
   const chForgot   = countBy(chCards, 'forgot')
-  const chNew      = chTotal - chKnown - chForgot
-  const filterCount = { new: chNew, forgot: chForgot, known: chKnown }
+  const chReview   = countBy(chCards, 'review')
+  const chNew      = chTotal - chKnown - chForgot - chReview
+  const filterCount = { new: chNew, forgot: chForgot, review: chReview, known: chKnown }
   const startCount = filter.reduce((n, k) => n + filterCount[k], 0)
   const toggleFilter = (k) => setFilter(f => f.includes(k) ? f.filter(x => x !== k) : [...f, k])
   const pct        = queue.length ? Math.round(idx / queue.length * 100) : 0
@@ -241,6 +248,7 @@ export default function Flashcards({ user, data }) {
                   {card.type === 'pi' && <div className="text-[10px] font-bold bg-amber-50 text-amber-800 px-3 py-1 rounded-full">★ PI topic</div>}
                   {card.type === 'trend' && <div className="text-[10px] font-bold bg-emerald-50 text-emerald-800 px-3 py-1 rounded-full">🌐 2025/26 trend</div>}
                   {card.type === 'exam2026' && <div className="text-[10px] font-bold bg-yellow-50 text-yellow-800 px-3 py-1 rounded-full">★ New from 2026 exams</div>}
+                  {statusOf(progress[card.id]) === 'review' && <div className="text-[10px] font-bold bg-violet-50 text-violet-800 px-3 py-1 rounded-full">↻ For review: a related question was missed or felt hard</div>}
                 </div>
                 <p className="text-sm italic text-on-surface-variant/70 font-medium">Tap to reveal definition</p>
               </>
@@ -248,20 +256,25 @@ export default function Flashcards({ user, data }) {
               <>
                 <span className="text-[11px] font-extrabold text-on-surface-variant tracking-[0.15em] uppercase mt-2">{card.term}</span>
                 <p className="text-[15px] text-on-surface leading-relaxed text-left flex-1 mt-4">{card.definition}</p>
+                {card.questions?.length > 0 && (
+                  <p className="text-[11px] text-on-surface-variant mt-4">Tested in {card.questions.length} exam question{card.questions.length > 1 ? 's' : ''}. Forgot sends them to For review.</p>
+                )}
               </>
             )}
           </button>
         </div>
 
         {/* Stats row */}
-        <div className="grid grid-cols-3 gap-3 px-5 mt-4">
+        {notice && <p className="px-5 mt-3 text-xs text-center text-violet-800">↻ {notice}</p>}
+        <div className="grid grid-cols-4 gap-2 px-5 mt-3">
           {[
             { label: 'Known',  val: chKnown,  color: 'text-secondary' },
             { label: 'Forgot', val: chForgot, color: 'text-error' },
+            { label: 'Review', val: chReview, color: 'text-violet-700' },
             { label: 'New',    val: chNew,    color: 'text-on-surface-variant' },
           ].map(({ label, val, color }) => (
-            <div key={label} className="bg-surface-container-low rounded-xl p-3 text-center">
-              <p className={`text-[10px] font-bold uppercase tracking-widest ${color} mb-1`}>{label}</p>
+            <div key={label} className="bg-surface-container-low rounded-xl p-2.5 text-center">
+              <p className={`text-[10px] font-bold uppercase tracking-wider ${color} mb-1`}>{label}</p>
               <p className="text-lg font-extrabold text-on-surface">{val}</p>
             </div>
           ))}
@@ -304,11 +317,12 @@ export default function Flashcards({ user, data }) {
             className="w-full bg-surface-container-low rounded-xl px-4 py-3 text-on-surface font-semibold text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 border-0 mb-4">
             {CHAPTERS.map(ch => <option key={ch}>{ch}</option>)}
           </select>
-          <div className="grid grid-cols-3 gap-2 mb-4">
+          <div className="grid grid-cols-4 gap-2 mb-4">
             {[
               { label: 'Total',  val: chTotal,  color: 'text-on-surface' },
               { label: 'Known',  val: chKnown,  color: 'text-secondary' },
               { label: 'Forgot', val: chForgot, color: 'text-error' },
+              { label: 'Review', val: chReview, color: 'text-violet-700' },
             ].map(({ label, val, color }) => (
               <div key={label} className="bg-surface-container-low rounded-xl p-2.5 text-center">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-outline mb-0.5">{label}</p>
@@ -318,7 +332,7 @@ export default function Flashcards({ user, data }) {
           </div>
 
           <p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant mb-2">Which cards</p>
-          <div className="grid grid-cols-3 gap-2 mb-2">
+          <div className="grid grid-cols-4 gap-2 mb-2">
             {FILTERS.map(f => {
               const active = filter.includes(f.key)
               return (
@@ -332,7 +346,7 @@ export default function Flashcards({ user, data }) {
             })}
           </div>
           <div className="flex justify-between items-center mb-4">
-            <p className="text-xs text-on-surface-variant">Tap to turn each group on or off. Cards keep coming until you stop.</p>
+            <p className="text-xs text-on-surface-variant">Tap to turn each group on or off. Cards keep coming until you stop. Review = a linked exam question was missed or felt hard.</p>
             <button onClick={() => setFilter(DEFAULT_FILTER)} className="text-xs font-bold text-primary whitespace-nowrap ml-3 active:opacity-70">Reset</button>
           </div>
 
@@ -353,9 +367,11 @@ export default function Flashcards({ user, data }) {
             const tot = chList.length
             const kn  = countBy(chList, 'known')
             const fg  = countBy(chList, 'forgot')
-            const nw  = tot - kn - fg
+            const rv  = countBy(chList, 'review')
+            const nw  = tot - kn - fg - rv
             const pKnown  = tot ? (kn / tot * 100) : 0
             const pForgot = tot ? (fg / tot * 100) : 0
+            const pReview = tot ? (rv / tot * 100) : 0
             return (
               <button key={ch} onClick={() => setChapter(ch)}
                 className={`w-full text-left px-5 py-3.5 active:bg-surface-container-low transition-colors
@@ -370,9 +386,11 @@ export default function Flashcards({ user, data }) {
                   <span><span className="font-semibold text-on-surface">{nw}</span> new</span>
                   <span><span className="font-semibold text-secondary">{kn}</span> known</span>
                   <span><span className="font-semibold text-error">{fg}</span> forgot</span>
+                  <span><span className="font-semibold text-violet-700">{rv}</span> review</span>
                 </div>
                 <div className="h-1.5 w-full bg-surface-container rounded-full overflow-hidden flex">
                   <div className="h-full bg-secondary" style={{ width: `${pKnown}%` }} />
+                  <div className="h-full bg-violet-500" style={{ width: `${pReview}%` }} />
                   <div className="h-full bg-error" style={{ width: `${pForgot}%` }} />
                 </div>
               </button>

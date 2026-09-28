@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { saveProgress, getProgress, updateLeaderboard, mergeNewest } from '../lib/storage.js'
+import { flagCardsForReview, readProgress, cardStatus, questionStatus } from '../lib/review.js'
 
 const CATEGORIES = [
   'All categories','Financial Analysis','Financial-Information Management',
@@ -14,24 +15,23 @@ const CATEGORIES = [
 //   incorrect last answer was wrong
 //   hard      answered correctly, student tagged it Hard
 //   easy      answered correctly, student tagged it Easy
-// Filter chips are toggles: any combination can be on. Default is New + Incorrect + Hard.
+//   review    a linked flashcard was marked Forgot (see lib/review.js)
+// Filter chips are toggles: any combination can be on. Default is New + Incorrect + Hard + Review.
 const FILTERS = [
   { key: 'new',       label: 'New',       hint: 'Never answered' },
   { key: 'incorrect', label: 'Incorrect', hint: 'Missed last time' },
   { key: 'hard',      label: 'Hard',      hint: 'Right, but felt hard' },
+  { key: 'review',    label: 'Review',    hint: 'A related flashcard was marked Forgot' },
   { key: 'easy',      label: 'Easy',      hint: 'Right and felt easy' },
 ]
-const DEFAULT_FILTER = ['new', 'incorrect', 'hard']
+const DEFAULT_FILTER = ['new', 'incorrect', 'hard', 'review']
 const labelFor = (f) => {
   const arr = Array.isArray(f) ? f : [f]
   if (arr.length === FILTERS.length || arr.includes('all')) return 'all'
   return FILTERS.filter(x => arr.includes(x.key)).map(x => x.label.toLowerCase()).join(' + ')
 }
 
-function statusOf(p) {
-  if (!p) return 'new'
-  return p.status || 'new'
-}
+const statusOf = questionStatus
 
 function shuffle(arr) {
   const a = [...arr]
@@ -42,7 +42,7 @@ function shuffle(arr) {
   return a
 }
 
-export default function Exam({ user, data }) {
+export default function Exam({ user, data, cards }) {
   const [mode,      setMode]      = useState('menu')
   const [category,  setCategory]  = useState('All categories')
   const [filter,    setFilter]    = useState(DEFAULT_FILTER)
@@ -53,6 +53,8 @@ export default function Exam({ user, data }) {
   const [session,   setSession]   = useState({ correct: 0, wrong: 0, bycat: {} })
   const [history,   setHistory]   = useState([])
   const [sync,      setSync]      = useState('saved')
+  const [notice,    setNotice]    = useState('')
+  const [openCard,  setOpenCard]  = useState(null)
   const pendingRef = useRef(null)
   const sessionRef = useRef(session)
   const PROG_KEY   = `deca_progress_${user.key}`
@@ -137,8 +139,11 @@ export default function Exam({ user, data }) {
   const catList = catQuestions(category)
   const counts = {
     new: countBy(catList, 'new'), incorrect: countBy(catList, 'incorrect'),
-    hard: countBy(catList, 'hard'), easy: countBy(catList, 'easy'), all: catList.length,
+    hard: countBy(catList, 'hard'), easy: countBy(catList, 'easy'),
+    review: countBy(catList, 'review'), all: catList.length,
   }
+  const cardById = {}
+  for (const c of (cards || [])) cardById[c.id] = c
   const startCount = filter.reduce((n, k) => n + counts[k], 0)
   const toggleFilter = (k) => setFilter(f => f.includes(k) ? f.filter(x => x !== k) : [...f, k])
 
@@ -166,6 +171,12 @@ export default function Exam({ user, data }) {
   }
 
   function record(q, status) {
+    // Mapping: a wrong or hard question sends every linked flashcard to "For review".
+    // Flag first (local only); persist() below then saves everything in one push.
+    if ((status === 'incorrect' || status === 'hard') && q.cards?.length) {
+      flagCardsForReview(user.key, q.cards, `question:${q.id}`)
+      setNotice(`${q.cards.length} related flashcard${q.cards.length > 1 ? 's' : ''} marked for review`)
+    }
     const prev = qprog[q.id] || {}
     const newProg = { ...qprog, [q.id]: {
       status,
@@ -181,6 +192,7 @@ export default function Exam({ user, data }) {
   // Endless: when the queue runs out, rebuild it from the same filter.
   // Questions that no longer match the filter drop out on their own.
   function advance(newProg) {
+    setNotice(''); setOpenCard(null)
     if (cur + 1 < queue.length) { setCur(c => c + 1); setSelected(null); return }
     const q = shuffle(poolFor(category, filter, newProg || qprog))
     if (q.length === 0) { finish(); return }
@@ -247,36 +259,37 @@ export default function Exam({ user, data }) {
               {CATEGORIES.map(c => <option key={c}>{c}</option>)}
             </select>
 
-            <div className="grid grid-cols-4 gap-2 mb-4">
+            <div className="grid grid-cols-5 gap-1.5 mb-4">
               {[
                 { label: 'Total',     val: counts.all,       color: 'text-on-surface' },
                 { label: 'Incorrect', val: counts.incorrect, color: 'text-error' },
                 { label: 'Hard',      val: counts.hard,      color: 'text-tertiary-container' },
+                { label: 'Review',    val: counts.review,    color: 'text-violet-700' },
                 { label: 'Easy',      val: counts.easy,      color: 'text-secondary' },
               ].map(({ label, val, color }) => (
-                <div key={label} className="bg-surface-container-low rounded-xl p-2.5 text-center">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-outline mb-0.5">{label}</p>
+                <div key={label} className="bg-surface-container-low rounded-xl py-2.5 px-1 text-center">
+                  <p className="text-[9px] font-bold uppercase tracking-wide text-outline mb-0.5">{label}</p>
                   <p className={`text-lg font-extrabold ${color}`}>{val}</p>
                 </div>
               ))}
             </div>
 
             <p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant mb-2">Which questions</p>
-            <div className="grid grid-cols-4 gap-1.5 mb-2">
+            <div className="grid grid-cols-5 gap-1.5 mb-2">
               {FILTERS.map(f => {
                 const active = filter.includes(f.key)
                 return (
                   <button key={f.key} onClick={() => toggleFilter(f.key)} title={f.hint}
                     className={`rounded-xl py-2.5 text-center transition-all active:scale-95 border
                       ${active ? 'bg-primary text-on-primary border-primary shadow-md shadow-primary/20' : 'bg-surface-container-low text-on-surface border-transparent'}`}>
-                    <p className="text-[11px] font-bold">{f.label}</p>
+                    <p className="text-[10px] font-bold">{f.label}</p>
                     <p className={`text-[11px] font-semibold ${active ? 'text-on-primary/80' : 'text-on-surface-variant'}`}>{counts[f.key]}</p>
                   </button>
                 )
               })}
             </div>
             <div className="flex justify-between items-center mb-4">
-              <p className="text-xs text-on-surface-variant">Tap to turn each group on or off. No timer, no limit: questions keep coming until you tap Finish or run out.</p>
+              <p className="text-xs text-on-surface-variant">Tap to turn each group on or off. No timer, no limit: questions keep coming until you tap Finish or run out. Review = a linked flashcard was marked Forgot.</p>
               <button onClick={() => setFilter(DEFAULT_FILTER)} className="text-xs font-bold text-primary whitespace-nowrap ml-3 active:opacity-70">Reset</button>
             </div>
 
@@ -298,7 +311,9 @@ export default function Exam({ user, data }) {
                   const inc = countBy(list, 'incorrect')
                   const hd  = countBy(list, 'hard')
                   const ez  = countBy(list, 'easy')
-                  const nw  = tot - inc - hd - ez
+                  const rv  = countBy(list, 'review')
+                  const nw  = tot - inc - hd - ez - rv
+                  const pRev  = tot ? (rv / tot * 100) : 0
                   const pEasy = tot ? (ez / tot * 100) : 0
                   const pHard = tot ? (hd / tot * 100) : 0
                   const pInc  = tot ? (inc / tot * 100) : 0
@@ -312,15 +327,17 @@ export default function Exam({ user, data }) {
                           <span className="font-semibold text-on-surface">{tot}</span> total
                         </span>
                       </div>
-                      <div className="flex gap-3 text-[11px] text-on-surface-variant mb-1.5">
+                      <div className="flex flex-wrap gap-x-3 text-[11px] text-on-surface-variant mb-1.5">
                         <span><span className="font-semibold text-on-surface">{nw}</span> new</span>
                         <span><span className="font-semibold text-error">{inc}</span> incorrect</span>
                         <span><span className="font-semibold text-tertiary-container">{hd}</span> hard</span>
+                        <span><span className="font-semibold text-violet-700">{rv}</span> review</span>
                         <span><span className="font-semibold text-secondary">{ez}</span> easy</span>
                       </div>
                       <div className="h-1.5 w-full bg-surface-container rounded-full overflow-hidden flex">
                         <div className="h-full bg-secondary" style={{ width: `${pEasy}%` }} />
                         <div className="h-full bg-tertiary-container" style={{ width: `${pHard}%` }} />
+                        <div className="h-full bg-violet-500" style={{ width: `${pRev}%` }} />
                         <div className="h-full bg-error" style={{ width: `${pInc}%` }} />
                       </div>
                     </button>
@@ -460,8 +477,9 @@ export default function Exam({ user, data }) {
           {statusOf(qprog[q.id]) !== 'new' && (
             <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full
               ${statusOf(qprog[q.id]) === 'incorrect' ? 'bg-error-container/40 text-on-error-container' :
-                statusOf(qprog[q.id]) === 'hard' ? 'bg-tertiary-fixed text-on-tertiary-fixed-variant' : 'bg-secondary-container/30 text-on-secondary-container'}`}>
-              Last time: {statusOf(qprog[q.id])}
+                statusOf(qprog[q.id]) === 'hard' ? 'bg-tertiary-fixed text-on-tertiary-fixed-variant' :
+                statusOf(qprog[q.id]) === 'review' ? 'bg-violet-50 text-violet-800' : 'bg-secondary-container/30 text-on-secondary-container'}`}>
+              {statusOf(qprog[q.id]) === 'review' ? 'For review: a related flashcard was forgotten' : `Last time: ${statusOf(qprog[q.id])}`}
             </span>
           )}
         </div>
@@ -509,6 +527,38 @@ export default function Exam({ user, data }) {
               </span>{' '}
               {q.explanation}
             </p>
+          </div>
+        )}
+
+        {selected && notice && <p className="mt-3 text-xs text-center text-violet-800">↻ {notice}</p>}
+
+        {selected && q.cards?.length > 0 && (
+          <div className="mt-4 bg-surface-container-lowest rounded-2xl border border-outline-variant/15 overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-surface-container flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary text-[16px]">style</span>
+              <span className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Related flashcards</span>
+            </div>
+            {q.cards.map(cid => {
+              const c = cardById[cid]
+              if (!c) return null
+              const st = cardStatus(readProgress(user.key).flashcards?.[cid])
+              const open = openCard === cid
+              return (
+                <button key={cid} onClick={() => setOpenCard(open ? null : cid)}
+                  className="w-full text-left px-4 py-3 border-b border-surface-container last:border-0 active:bg-surface-container-low">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-bold text-primary">{c.term}</span>
+                    <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full whitespace-nowrap
+                      ${st === 'known' ? 'bg-secondary-container/30 text-on-secondary-container' :
+                        st === 'forgot' ? 'bg-error-container/40 text-on-error-container' :
+                        st === 'review' ? 'bg-violet-50 text-violet-800' : 'bg-surface-container text-on-surface-variant'}`}>{st}</span>
+                  </div>
+                  {open
+                    ? <p className="text-[13px] text-on-surface-variant leading-relaxed mt-1.5">{c.definition}</p>
+                    : <p className="text-[11px] text-outline mt-0.5">Tap to see the definition</p>}
+                </button>
+              )
+            })}
           </div>
         )}
 
