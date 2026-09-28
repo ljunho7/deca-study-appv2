@@ -316,12 +316,20 @@ export default function Flashcards({ user, data, questions }) {
                             st === 'hard' ? 'bg-tertiary-fixed text-on-tertiary-fixed-variant' :
                             st === 'review' ? 'bg-violet-50 text-violet-800' : 'bg-surface-container text-on-surface-variant'}`}>{st}</span>
                       </div>
-                      {open ? (
-                        <div className="mt-1.5">
-                          <p className="text-[13px] font-semibold text-secondary">Answer: {q.answer}) {q[q.answer]}</p>
-                          {q.explanation && <p className="text-[13px] text-on-surface-variant leading-relaxed mt-1">{q.explanation}</p>}
-                        </div>
-                      ) : <p className="text-[11px] text-outline mt-0.5">Tap to see the answer</p>}
+                      <div className="mt-2 space-y-1.5">
+                        {['A','B','C','D'].map(opt => q[opt] ? (
+                          <div key={opt} className={`flex items-start gap-2 rounded-lg px-2.5 py-1.5 text-[13px]
+                            ${open && opt === q.answer ? 'bg-secondary-container/30 border border-secondary text-on-secondary-container font-semibold' : 'bg-surface-container-low text-on-surface-variant'}`}>
+                            <span className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-bold
+                              ${open && opt === q.answer ? 'bg-secondary text-on-secondary' : 'bg-surface-container text-on-surface'}`}>{opt}</span>
+                            <span className="flex-1">{q[opt]}</span>
+                            {open && opt === q.answer && <span className="material-symbols-outlined sym-filled text-secondary text-[16px]">check_circle</span>}
+                          </div>
+                        ) : null)}
+                      </div>
+                      {open
+                        ? (q.explanation && <p className="text-[13px] text-on-surface-variant leading-relaxed mt-2">{q.explanation}</p>)
+                        : <p className="text-[11px] text-outline mt-1.5">Tap to see the answer</p>}
                     </button>
                   )
                 })}
