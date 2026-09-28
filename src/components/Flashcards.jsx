@@ -337,31 +337,36 @@ export default function Flashcards({ user, data }) {
         </div>
       </div>
 
-      {/* Chapter breakdown */}
+      {/* Chapter breakdown (same layout as the Exam tab) */}
       <div className="px-5 mt-4">
-        <p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant mb-3">All chapters</p>
+        <p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant mb-3 mt-1">All chapters</p>
         <div className="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-[0px_2px_8px_rgba(26,27,33,0.04)]">
           {CHAPTERS.slice(1).map((ch, i) => {
             const chList = cards.filter(c => c.chapter === ch)
             const tot = chList.length
             const kn  = countBy(chList, 'known')
             const fg  = countBy(chList, 'forgot')
-            const p   = tot > 0 ? Math.round(kn / tot * 100) : 0
-            const barColor = p > 70 ? 'bg-secondary' : p > 40 ? 'bg-tertiary-container' : 'bg-error'
+            const nw  = tot - kn - fg
+            const pKnown  = tot ? (kn / tot * 100) : 0
+            const pForgot = tot ? (fg / tot * 100) : 0
             return (
               <button key={ch} onClick={() => setChapter(ch)}
                 className={`w-full text-left px-5 py-3.5 active:bg-surface-container-low transition-colors
-                  ${i < CHAPTERS.slice(1).length - 1 ? 'border-b border-surface-container' : ''}`}>
-                <div className="flex justify-between items-center mb-1.5">
-                  <span className="text-sm font-semibold text-on-surface">{ch}</span>
-                  <span className="text-xs text-on-surface-variant">
-                    <span className="font-semibold text-on-surface">{tot}</span> total ·{' '}
-                    <span className="font-semibold text-secondary">{kn}</span> known ·{' '}
-                    <span className="font-semibold text-error">{fg}</span> forgot
+                  ${chapter === ch ? 'bg-primary/5' : ''} ${i < CHAPTERS.length - 2 ? 'border-b border-surface-container' : ''}`}>
+                <div className="flex justify-between items-center mb-1.5 gap-2">
+                  <span className="text-sm font-semibold text-on-surface truncate">{ch}</span>
+                  <span className="text-xs text-on-surface-variant whitespace-nowrap">
+                    <span className="font-semibold text-on-surface">{tot}</span> total
                   </span>
                 </div>
-                <div className="h-1.5 w-full bg-surface-container rounded-full overflow-hidden">
-                  <div className={`h-full ${barColor} rounded-full transition-all`} style={{ width: `${p}%` }} />
+                <div className="flex gap-3 text-[11px] text-on-surface-variant mb-1.5">
+                  <span><span className="font-semibold text-on-surface">{nw}</span> new</span>
+                  <span><span className="font-semibold text-secondary">{kn}</span> known</span>
+                  <span><span className="font-semibold text-error">{fg}</span> forgot</span>
+                </div>
+                <div className="h-1.5 w-full bg-surface-container rounded-full overflow-hidden flex">
+                  <div className="h-full bg-secondary" style={{ width: `${pKnown}%` }} />
+                  <div className="h-full bg-error" style={{ width: `${pForgot}%` }} />
                 </div>
               </button>
             )
