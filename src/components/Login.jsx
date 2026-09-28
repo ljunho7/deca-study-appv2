@@ -1,5 +1,11 @@
 import { useState } from 'react'
 
+// Fixed accounts. No sign-up: only these two can log in.
+const USERS = [
+  { key: 'hannah', name: 'Hannah', pin: '0325', icon: 'school' },
+  { key: 'debug',  name: 'Debug',  pin: '0000', icon: 'bug_report' },
+]
+
 const Logo = () => (
   <div className="w-20 h-20 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/30">
     <span className="material-symbols-outlined sym-filled text-white text-[40px]">trending_up</span>
@@ -7,38 +13,16 @@ const Logo = () => (
 )
 
 export default function Login({ onLogin }) {
-  const [step, setStep]       = useState('name')
-  const [name, setName]       = useState('')
-  const [pin, setPin]         = useState('')
-  const [confirm, setConfirm] = useState('')
-  const [error, setError]     = useState('')
+  const [selected, setSelected] = useState(null)
+  const [pin, setPin]           = useState('')
+  const [error, setError]       = useState('')
 
-  const getUsers = () => { try { return JSON.parse(localStorage.getItem('deca_users') || '{}') } catch { return {} } }
-  const saveUsers = u => localStorage.setItem('deca_users', JSON.stringify(u))
-
-  function handleName() {
-    const n = name.trim()
-    if (n.length < 2) { setError('Enter your name (at least 2 characters)'); return }
-    setError('')
-    const users = getUsers()
-    setStep(users[n.toLowerCase()] ? 'pin' : 'setpin')
-  }
+  function pick(u) { setSelected(u); setPin(''); setError('') }
 
   function handleLogin() {
-    const users = getUsers()
-    const stored = users[name.trim().toLowerCase()]
-    if (!stored || stored.pin !== pin) { setError('Wrong PIN. Try again.'); setPin(''); return }
-    onLogin({ name: stored.displayName, key: name.trim().toLowerCase() })
-  }
-
-  function handleSetPin() {
-    if (pin.length < 4) { setError('PIN must be at least 4 digits'); return }
-    if (pin !== confirm) { setError("PINs don't match"); return }
-    const users = getUsers()
-    const key = name.trim().toLowerCase()
-    users[key] = { displayName: name.trim(), pin }
-    saveUsers(users)
-    onLogin({ name: name.trim(), key })
+    if (!selected) return
+    if (pin !== selected.pin) { setError('Wrong PIN. Try again.'); setPin(''); return }
+    onLogin({ name: selected.name, key: selected.key })
   }
 
   return (
@@ -57,29 +41,27 @@ export default function Login({ onLogin }) {
       </div>
 
       <div className="w-full max-w-sm space-y-6">
-        {step === 'name' && (
+        {!selected && (
           <>
-            <div className="space-y-2">
-              <label className="block text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant ml-1">Your name</label>
-              <input
-                className="w-full bg-surface-container-low rounded-xl px-4 py-4 text-on-surface placeholder:text-outline font-semibold text-base focus:outline-none focus:ring-2 focus:ring-primary/20 border-0"
-                placeholder="e.g. Jamie Smith" value={name}
-                onChange={e => setName(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleName()}
-                autoFocus />
+            <label className="block text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant ml-1">Who is studying?</label>
+            <div className="grid grid-cols-2 gap-3">
+              {USERS.map(u => (
+                <button key={u.key} onClick={() => pick(u)}
+                  className="bg-surface-container-lowest rounded-2xl p-5 flex flex-col items-center gap-3 shadow-[0px_2px_8px_rgba(26,27,33,0.04)] border border-outline-variant/15 active:scale-95 transition-all">
+                  <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
+                    <span className="material-symbols-outlined text-primary text-[26px]">{u.icon}</span>
+                  </div>
+                  <span className="text-base font-bold text-on-surface">{u.name}</span>
+                </button>
+              ))}
             </div>
-            {error && <p className="text-error text-sm text-center font-medium">{error}</p>}
-            <button onClick={handleName}
-              className="w-full bg-primary text-on-primary font-bold py-4 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-primary/20">
-              Continue <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
-            </button>
           </>
         )}
 
-        {step === 'pin' && (
+        {selected && (
           <>
             <div className="text-center mb-2">
-              <p className="text-lg font-bold text-on-surface">Welcome back, {name.trim()}!</p>
+              <p className="text-lg font-bold text-on-surface">Welcome back, {selected.name}!</p>
               <div className="mt-1.5 h-1 w-8 bg-secondary rounded-full mx-auto" />
             </div>
             <div className="space-y-2">
@@ -96,35 +78,10 @@ export default function Login({ onLogin }) {
               className="w-full bg-primary text-on-primary font-bold py-4 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-primary/20">
               Sign In <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
             </button>
-            <button onClick={() => { setStep('name'); setPin(''); setError('') }}
+            <button onClick={() => setSelected(null)}
               className="w-full flex items-center justify-center gap-2 text-on-surface-variant text-sm font-semibold py-2 active:opacity-70 transition-all">
               <span className="material-symbols-outlined text-[18px]">arrow_back</span>
               Different person
-            </button>
-          </>
-        )}
-
-        {step === 'setpin' && (
-          <>
-            <div className="space-y-2">
-              <label className="block text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant ml-1">Create a PIN (4–8 digits)</label>
-              <input
-                className="w-full bg-surface-container-low rounded-xl px-4 py-4 text-on-surface font-semibold tracking-widest text-base focus:outline-none focus:ring-2 focus:ring-primary/20 border-0"
-                type="password" inputMode="numeric" placeholder="e.g. 1234"
-                value={pin} onChange={e => setPin(e.target.value)} maxLength={8} autoFocus />
-            </div>
-            <div className="space-y-2">
-              <label className="block text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant ml-1">Confirm PIN</label>
-              <input
-                className="w-full bg-surface-container-low rounded-xl px-4 py-4 text-on-surface font-semibold tracking-widest text-base focus:outline-none focus:ring-2 focus:ring-primary/20 border-0"
-                type="password" inputMode="numeric"
-                value={confirm} onChange={e => setConfirm(e.target.value)} maxLength={8}
-                onKeyDown={e => e.key === 'Enter' && handleSetPin()} />
-            </div>
-            {error && <p className="text-error text-sm text-center font-medium">{error}</p>}
-            <button onClick={handleSetPin}
-              className="w-full bg-primary text-on-primary font-bold py-4 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-primary/20">
-              Create Account <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
             </button>
           </>
         )}
@@ -133,7 +90,7 @@ export default function Login({ onLogin }) {
       <div className="mt-auto pt-12 text-center">
         <div className="inline-flex items-center gap-2 bg-surface-container-lowest border border-outline-variant/15 px-4 py-2 rounded-full">
           <span className="material-symbols-outlined text-secondary text-[14px]">lock</span>
-          <p className="text-[11px] font-medium text-on-surface-variant">Your PIN is stored locally on this device</p>
+          <p className="text-[11px] font-medium text-on-surface-variant">Progress syncs to the team server</p>
         </div>
       </div>
     </div>

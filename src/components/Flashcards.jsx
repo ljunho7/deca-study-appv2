@@ -1,19 +1,24 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { saveProgress, getProgress } from '../lib/storage.js'
 
-function nextReview(card, quality) {
-  const now = Date.now()
-  let interval = card.interval || 1
-  let ease = card.ease || 2.5
-  if (quality === 0) { interval = 1; ease = Math.max(1.3, ease - 0.2) }
-  else if (quality === 1) { interval = Math.max(1, Math.round(interval * 1.2)) }
-  else { interval = Math.round(interval * ease); ease = Math.min(3.0, ease + 0.1) }
+function mark(prev, quality) {
   return {
-    status: quality < 2 ? 'learning' : 'known',
-    nextReview: now + interval * 86400000,
-    interval, ease,
-    reviews: (card.reviews || 0) + 1,
+    status: quality === 2 ? 'known' : 'forgot',
+    reviews: (prev.reviews || 0) + 1,
+    lastReviewed: Date.now(),
   }
+}
+
+const FILTERS = [
+  { key: 'new',    label: 'New',    hint: 'Not reviewed yet' },
+  { key: 'forgot', label: 'Forgot', hint: 'Marked Forgot last time' },
+  { key: 'known',  label: 'Known',  hint: 'Marked Got it last time' },
+  { key: 'all',    label: 'All',    hint: 'Every card in the chapter' },
+]
+
+function statusOf(p) {
+  if (!p) return 'new'
+  return p.status === 'known' ? 'known' : 'forgot'
 }
 
 const CHAPTERS = [
@@ -28,11 +33,12 @@ export default function Flashcards({ user, data }) {
   const [cards, setCards]         = useState([])
   const [progress, setProgress]   = useState({})
   const [chapter, setChapter]     = useState('All chapters')
+  const [filter, setFilter]       = useState('all')
   const [queue, setQueue]         = useState([])
   const [idx, setIdx]             = useState(0)
   const [flipped, setFlipped]     = useState(false)
   const [mode, setMode]           = useState('menu')
-  const [session, setSession]     = useState({ known: 0, total: 0 })
+  const [session, setSession]     = useState({ known: 0, forgot: 0, rounds: 0 })
   const [sync, setSync]           = useState('saved')
   const pendingRef                = useRef(null)
   const PROG_KEY                  = `deca_progress_${user.key}`
@@ -97,39 +103,60 @@ export default function Flashcards({ user, data }) {
     }, 3000)
   }, [PROG_KEY])
 
-  function buildQueue(ch) {
-    const filtered = ch === 'All chapters' ? cards : cards.filter(c => c.chapter === ch)
-    const now = Date.now()
-    const due = filtered.filter(c => progress[c.id] && progress[c.id].status !== 'known' && (progress[c.id].nextReview || 0) <= now)
-    const newCards = filtered.filter(c => !progress[c.id])
-    const combined = [...due, ...newCards].slice(0, 50)
-    for (let i = combined.length - 1; i > 0; i--) {
+  function chapterCards(ch) {
+    return ch === 'All chapters' ? cards : cards.filter(c => c.chapter === ch)
+  }
+
+  function poolFor(ch, f, prog) {
+    const filtered = chapterCards(ch)
+    if (f === 'all') return filtered
+    return filtered.filter(c => statusOf(prog[c.id]) === f)
+  }
+
+  function shuffle(arr) {
+    const a = [...arr]
+    for (let i = a.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [combined[i], combined[j]] = [combined[j], combined[i]]
+      [a[i], a[j]] = [a[j], a[i]]
     }
-    return combined
+    return a
   }
 
   function start() {
-    const q = buildQueue(chapter)
+    const q = shuffle(poolFor(chapter, filter, progress))
     setQueue(q); setIdx(0); setFlipped(false)
-    setSession({ known: 0, total: q.length })
+    setSession({ known: 0, forgot: 0, rounds: 1 })
     setMode(q.length === 0 ? 'done' : 'study')
+  }
+
+  // Endless study: when the queue runs out, rebuild it from the same filter
+  // (cards that no longer match the filter drop out) and keep going.
+  function nextRound(newProg) {
+    const q = shuffle(poolFor(chapter, filter, newProg))
+    if (q.length === 0) { setMode('done'); return }
+    setQueue(q); setIdx(0); setFlipped(false)
+    setSession(s => ({ ...s, rounds: s.rounds + 1 }))
   }
 
   function respond(quality) {
     const card = queue[idx]
-    const newProg = { ...progress, [card.id]: nextReview(progress[card.id] || {}, quality) }
+    const newProg = { ...progress, [card.id]: mark(progress[card.id] || {}, quality) }
     setProgress(newProg)
     persist(newProg)
-    setSession(s => ({ ...s, known: s.known + (quality === 2 ? 1 : 0) }))
-    if (idx + 1 >= queue.length) setMode('done')
+    setSession(s => ({ ...s, known: s.known + (quality === 2 ? 1 : 0), forgot: s.forgot + (quality === 2 ? 0 : 1) }))
+    if (idx + 1 >= queue.length) nextRound(newProg)
     else { setIdx(i => i + 1); setFlipped(false) }
   }
 
-  const totalKnown = Object.values(progress).filter(c => c.status === 'known').length
-  const chTotal    = chapter === 'All chapters' ? cards.length : cards.filter(c => c.chapter === chapter).length
-  const dueCount   = buildQueue(chapter).length
+  const countBy = (list, st) => list.filter(c => statusOf(progress[c.id]) === st).length
+  const allKnown   = countBy(cards, 'known')
+  const chCards    = chapterCards(chapter)
+  const chTotal    = chCards.length
+  const chKnown    = countBy(chCards, 'known')
+  const chForgot   = countBy(chCards, 'forgot')
+  const chNew      = chTotal - chKnown - chForgot
+  const filterCount = { new: chNew, forgot: chForgot, known: chKnown, all: chTotal }
+  const startCount = filterCount[filter]
   const pct        = queue.length ? Math.round(idx / queue.length * 100) : 0
 
   const syncColor = sync === 'saved' ? 'bg-secondary' : sync === 'saving' ? 'bg-amber-500' : 'bg-error'
@@ -140,9 +167,9 @@ export default function Flashcards({ user, data }) {
       <div className="text-6xl mb-5">🎉</div>
       <h2 className="text-2xl font-black text-on-surface mb-2">Session complete!</h2>
       <p className="text-on-surface-variant text-sm mb-8 max-w-xs">
-        {session.total === 0
-          ? "You're all caught up! Come back tomorrow for more due cards."
-          : `Reviewed ${session.total} cards — ${session.known} known.`}
+        {session.known + session.forgot === 0
+          ? `No cards match "${FILTERS.find(f => f.key === filter)?.label}" in this chapter. Pick another filter to keep going.`
+          : `Reviewed ${session.known + session.forgot} cards: ${session.known} known, ${session.forgot} forgot. Nothing left in this filter for now.`}
       </p>
       <div className="flex items-center gap-2 text-sm text-on-surface-variant mb-6">
         <span className={`w-2 h-2 rounded-full ${syncColor}`} />
@@ -172,7 +199,7 @@ export default function Flashcards({ user, data }) {
               <span className={`w-2 h-2 rounded-full ${syncColor}`} />
               <span className="text-[11px] font-bold text-on-secondary-container uppercase tracking-wide">{syncLabel}</span>
             </div>
-            <span className="text-sm font-bold text-on-surface-variant">{idx + 1} / {queue.length}</span>
+            <span className="text-sm font-bold text-on-surface-variant">{idx + 1} / {queue.length}{session.rounds > 1 ? ` · round ${session.rounds}` : ''}</span>
           </div>
         </div>
         <div className="text-sm text-on-surface-variant px-5 pb-2 bg-background">
@@ -227,9 +254,9 @@ export default function Flashcards({ user, data }) {
         {/* Stats row */}
         <div className="grid grid-cols-3 gap-3 px-5 mt-4">
           {[
-            { label: 'Known',  val: Object.values(progress).filter(c=>c.status==='known').length, color: 'text-secondary' },
-            { label: 'Review', val: Object.values(progress).filter(c=>c.status==='learning').length, color: 'text-tertiary-container' },
-            { label: 'New',    val: cards.length - Object.keys(progress).length, color: 'text-on-surface-variant' },
+            { label: 'Known',  val: chKnown,  color: 'text-secondary' },
+            { label: 'Forgot', val: chForgot, color: 'text-error' },
+            { label: 'New',    val: chNew,    color: 'text-on-surface-variant' },
           ].map(({ label, val, color }) => (
             <div key={label} className="bg-surface-container-low rounded-xl p-3 text-center">
               <p className={`text-[10px] font-bold uppercase tracking-widest ${color} mb-1`}>{label}</p>
@@ -240,9 +267,8 @@ export default function Flashcards({ user, data }) {
 
         {/* Response buttons */}
         {flipped && (
-          <div className="grid grid-cols-3 gap-3 px-5 mt-3 pb-4">
+          <div className="grid grid-cols-2 gap-3 px-5 mt-3 pb-4">
             <button onClick={() => respond(0)} className="py-4 bg-error-container text-on-error-container rounded-2xl font-bold text-sm active:scale-95 transition-all">Forgot</button>
-            <button onClick={() => respond(1)} className="py-4 bg-tertiary-fixed text-on-tertiary-fixed-variant rounded-2xl font-bold text-sm active:scale-95 transition-all">Hard</button>
             <button onClick={() => respond(2)} className="py-4 bg-secondary text-on-secondary rounded-2xl font-bold text-sm shadow-lg shadow-secondary/20 active:scale-95 transition-all">Got it ✓</button>
           </div>
         )}
@@ -259,7 +285,7 @@ export default function Flashcards({ user, data }) {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-black text-on-surface tracking-tight">Flashcards</h1>
-            <p className="text-sm text-on-surface-variant mt-0.5">{totalKnown} of {cards.length} terms known</p>
+            <p className="text-sm text-on-surface-variant mt-0.5">{allKnown} of {cards.length} terms known</p>
           </div>
           <div className="flex items-center gap-1.5 text-sm text-on-surface-variant">
             <span className={`w-2 h-2 rounded-full ${syncColor}`} />
@@ -278,9 +304,9 @@ export default function Flashcards({ user, data }) {
           </select>
           <div className="grid grid-cols-3 gap-2 mb-4">
             {[
-              { label: 'Total', val: chTotal, color: 'text-on-surface' },
-              { label: 'Due',   val: dueCount, color: 'text-tertiary-container' },
-              { label: 'Known', val: totalKnown, color: 'text-secondary' },
+              { label: 'Total',  val: chTotal,  color: 'text-on-surface' },
+              { label: 'Known',  val: chKnown,  color: 'text-secondary' },
+              { label: 'Forgot', val: chForgot, color: 'text-error' },
             ].map(({ label, val, color }) => (
               <div key={label} className="bg-surface-container-low rounded-xl p-2.5 text-center">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-outline mb-0.5">{label}</p>
@@ -288,10 +314,27 @@ export default function Flashcards({ user, data }) {
               </div>
             ))}
           </div>
-          <button onClick={start}
-            className="w-full bg-primary text-on-primary font-bold py-4 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-primary/20">
+
+          <p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant mb-2">Which cards</p>
+          <div className="grid grid-cols-4 gap-2 mb-4">
+            {FILTERS.map(f => {
+              const active = filter === f.key
+              return (
+                <button key={f.key} onClick={() => setFilter(f.key)} title={f.hint}
+                  className={`rounded-xl py-2.5 text-center transition-all active:scale-95 border
+                    ${active ? 'bg-primary text-on-primary border-primary shadow-md shadow-primary/20' : 'bg-surface-container-low text-on-surface border-transparent'}`}>
+                  <p className="text-xs font-bold">{f.label}</p>
+                  <p className={`text-[11px] font-semibold ${active ? 'text-on-primary/80' : 'text-on-surface-variant'}`}>{filterCount[f.key]}</p>
+                </button>
+              )
+            })}
+          </div>
+          <p className="text-xs text-on-surface-variant mb-4">{FILTERS.find(f => f.key === filter)?.hint}. Cards keep coming until you stop.</p>
+
+          <button onClick={start} disabled={startCount === 0}
+            className="w-full bg-primary text-on-primary font-bold py-4 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-primary/20 disabled:opacity-40 disabled:shadow-none">
             <span className="material-symbols-outlined sym-filled text-[20px]">play_arrow</span>
-            {dueCount > 0 ? `Study ${dueCount} due cards` : 'Study new cards'}
+            {startCount > 0 ? `Study ${FILTERS.find(f => f.key === filter)?.label.toLowerCase()} cards` : 'No cards in this filter'}
           </button>
         </div>
       </div>
@@ -301,8 +344,10 @@ export default function Flashcards({ user, data }) {
         <p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant mb-3">All chapters</p>
         <div className="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-[0px_2px_8px_rgba(26,27,33,0.04)]">
           {CHAPTERS.slice(1).map((ch, i) => {
-            const tot = cards.filter(c => c.chapter === ch).length
-            const kn  = cards.filter(c => c.chapter === ch && progress[c.id]?.status === 'known').length
+            const chList = cards.filter(c => c.chapter === ch)
+            const tot = chList.length
+            const kn  = countBy(chList, 'known')
+            const fg  = countBy(chList, 'forgot')
             const p   = tot > 0 ? Math.round(kn / tot * 100) : 0
             const barColor = p > 70 ? 'bg-secondary' : p > 40 ? 'bg-tertiary-container' : 'bg-error'
             return (
@@ -311,7 +356,11 @@ export default function Flashcards({ user, data }) {
                   ${i < CHAPTERS.slice(1).length - 1 ? 'border-b border-surface-container' : ''}`}>
                 <div className="flex justify-between items-center mb-1.5">
                   <span className="text-sm font-semibold text-on-surface">{ch}</span>
-                  <span className="text-xs text-on-surface-variant">{kn}/{tot}</span>
+                  <span className="text-xs text-on-surface-variant">
+                    <span className="font-semibold text-on-surface">{tot}</span> total ·{' '}
+                    <span className="font-semibold text-secondary">{kn}</span> known ·{' '}
+                    <span className="font-semibold text-error">{fg}</span> forgot
+                  </span>
                 </div>
                 <div className="h-1.5 w-full bg-surface-container rounded-full overflow-hidden">
                   <div className={`h-full ${barColor} rounded-full transition-all`} style={{ width: `${p}%` }} />

@@ -92,8 +92,8 @@ export default function Profile({ user, onLogout }) {
             <p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant">About</p>
           </div>
           {[
-            { icon:'menu_book', label:'Study guide',  val:'1,050 terms · 14 chapters' },
-            { icon:'quiz',      label:'Question bank', val:'3,200 questions' },
+            { icon:'menu_book', label:'Study guide',  val:'1,324 terms · 14 chapters' },
+            { icon:'quiz',      label:'Question bank', val:'3,564 questions' },
             { icon:'fact_check',label:'PI coverage',  val:'Business Admin Core + Finance' },
           ].map(({ icon, label, val }) => (
             <div key={label} className="px-5 py-3.5 flex items-center gap-3 border-b border-surface-container last:border-0">

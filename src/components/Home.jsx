@@ -54,8 +54,8 @@ export default function Home({ user, onTabChange }) {
   ]
 
   const features = [
-    { tab: 'cards',   icon: 'style',      color: 'bg-primary/10 text-primary',    title: 'Flashcards',     sub: '1,050 terms • Spaced repetition enabled' },
-    { tab: 'exam',    icon: 'edit_note',  color: 'bg-secondary/10 text-secondary', title: 'Practice exam',  sub: '3,200 questions • Timed mode' },
+    { tab: 'cards',   icon: 'style',      color: 'bg-primary/10 text-primary',    title: 'Flashcards',     sub: '1,324 terms • New, Forgot, Known filters' },
+    { tab: 'exam',    icon: 'edit_note',  color: 'bg-secondary/10 text-secondary', title: 'Practice exam',  sub: '3,564 questions • Timed mode' },
     { tab: 'pi',      icon: 'fact_check', color: 'bg-tertiary/10 text-tertiary',   title: 'PI tracker',     sub: 'Coverage map • Shared with team' },
   ]
 
