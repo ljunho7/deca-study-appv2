@@ -14,13 +14,19 @@ const CATEGORIES = [
 //   incorrect last answer was wrong
 //   hard      answered correctly, student tagged it Hard
 //   easy      answered correctly, student tagged it Easy
+// Filter chips are toggles: any combination can be on. Default is New + Incorrect + Hard.
 const FILTERS = [
   { key: 'new',       label: 'New',       hint: 'Never answered' },
   { key: 'incorrect', label: 'Incorrect', hint: 'Missed last time' },
   { key: 'hard',      label: 'Hard',      hint: 'Right, but felt hard' },
   { key: 'easy',      label: 'Easy',      hint: 'Right and felt easy' },
-  { key: 'all',       label: 'All',       hint: 'Every question' },
 ]
+const DEFAULT_FILTER = ['new', 'incorrect', 'hard']
+const labelFor = (f) => {
+  const arr = Array.isArray(f) ? f : [f]
+  if (arr.length === FILTERS.length || arr.includes('all')) return 'all'
+  return FILTERS.filter(x => arr.includes(x.key)).map(x => x.label.toLowerCase()).join(' + ')
+}
 
 function statusOf(p) {
   if (!p) return 'new'
@@ -39,7 +45,7 @@ function shuffle(arr) {
 export default function Exam({ user, data }) {
   const [mode,      setMode]      = useState('menu')
   const [category,  setCategory]  = useState('All categories')
-  const [filter,    setFilter]    = useState('all')
+  const [filter,    setFilter]    = useState(DEFAULT_FILTER)
   const [qprog,     setQprog]     = useState({})     // per-question status
   const [queue,     setQueue]     = useState([])
   const [cur,       setCur]       = useState(0)
@@ -121,7 +127,7 @@ export default function Exam({ user, data }) {
 
   // ── Pools and counts ─────────────────────────────────────────────────
   const catQuestions = (cat) => !data ? [] : (cat === 'All categories' ? data : data.filter(q => q.category === cat))
-  const poolFor = (cat, f, prog) => f === 'all' ? catQuestions(cat) : catQuestions(cat).filter(q => statusOf(prog[q.id]) === f)
+  const poolFor = (cat, f, prog) => catQuestions(cat).filter(q => f.includes(statusOf(prog[q.id])))
   const countBy = (list, st) => list.filter(q => statusOf(qprog[q.id]) === st).length
 
   const catList = catQuestions(category)
@@ -129,7 +135,8 @@ export default function Exam({ user, data }) {
     new: countBy(catList, 'new'), incorrect: countBy(catList, 'incorrect'),
     hard: countBy(catList, 'hard'), easy: countBy(catList, 'easy'), all: catList.length,
   }
-  const startCount = counts[filter]
+  const startCount = filter.reduce((n, k) => n + counts[k], 0)
+  const toggleFilter = (k) => setFilter(f => f.includes(k) ? f.filter(x => x !== k) : [...f, k])
 
   // ── Session flow ─────────────────────────────────────────────────────
   function start() {
@@ -209,7 +216,7 @@ export default function Exam({ user, data }) {
 
   const syncDot = sync === 'saved' ? 'bg-secondary' : sync === 'saving' ? 'bg-amber-500' : 'bg-error'
   const syncLabel = sync === 'saved' ? 'Saved' : sync === 'saving' ? 'Saving…' : 'Pending'
-  const filterLabel = FILTERS.find(f => f.key === filter)?.label
+  const filterLabel = labelFor(filter)
 
   // ── MENU ──────────────────────────────────────────────────────────────
   if (mode === 'menu') {
@@ -251,11 +258,11 @@ export default function Exam({ user, data }) {
             </div>
 
             <p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant mb-2">Which questions</p>
-            <div className="grid grid-cols-5 gap-1.5 mb-3">
+            <div className="grid grid-cols-4 gap-1.5 mb-2">
               {FILTERS.map(f => {
-                const active = filter === f.key
+                const active = filter.includes(f.key)
                 return (
-                  <button key={f.key} onClick={() => setFilter(f.key)} title={f.hint}
+                  <button key={f.key} onClick={() => toggleFilter(f.key)} title={f.hint}
                     className={`rounded-xl py-2.5 text-center transition-all active:scale-95 border
                       ${active ? 'bg-primary text-on-primary border-primary shadow-md shadow-primary/20' : 'bg-surface-container-low text-on-surface border-transparent'}`}>
                     <p className="text-[11px] font-bold">{f.label}</p>
@@ -264,12 +271,15 @@ export default function Exam({ user, data }) {
                 )
               })}
             </div>
-            <p className="text-xs text-on-surface-variant mb-4">{FILTERS.find(f => f.key === filter)?.hint}. No timer, no limit: questions keep coming until you tap Finish or run out.</p>
+            <div className="flex justify-between items-center mb-4">
+              <p className="text-xs text-on-surface-variant">Tap to turn each group on or off. No timer, no limit: questions keep coming until you tap Finish or run out.</p>
+              <button onClick={() => setFilter(DEFAULT_FILTER)} className="text-xs font-bold text-primary whitespace-nowrap ml-3 active:opacity-70">Reset</button>
+            </div>
 
             <button onClick={start} disabled={!data || startCount === 0}
               className="w-full bg-primary text-on-primary font-bold py-4 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-primary/20 disabled:opacity-40 disabled:shadow-none">
               <span className="material-symbols-outlined sym-filled text-[20px]">play_arrow</span>
-              {!data ? 'Loading questions…' : startCount > 0 ? `Start ${filterLabel.toLowerCase()} questions` : 'No questions in this filter'}
+              {!data ? 'Loading questions…' : filter.length === 0 ? 'Pick at least one group' : startCount > 0 ? `Start ${startCount} ${filterLabel} questions` : 'No questions in this filter'}
             </button>
           </div>
 
@@ -324,7 +334,7 @@ export default function Exam({ user, data }) {
               {recent.map((e, i) => (
                 <div key={i} className={`px-5 py-3.5 flex items-center gap-3 ${i < recent.length - 1 ? 'border-b border-surface-container' : ''}`}>
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-on-surface">{e.category}{e.filter ? ` · ${FILTERS.find(f => f.key === e.filter)?.label || e.filter}` : e.type === 'full' ? ' · Full' : ' · Drill'}</p>
+                    <p className="text-sm font-semibold text-on-surface">{e.category}{e.filter ? ` · ${labelFor(e.filter)}` : e.type === 'full' ? ' · Full' : ' · Drill'}</p>
                     <p className="text-xs text-on-surface-variant">{new Date(e.date).toLocaleDateString()}</p>
                   </div>
                   <span className={`text-lg font-black ${e.pct >= 75 ? 'text-secondary' : e.pct >= 60 ? 'text-tertiary-container' : 'text-error'}`}>{e.pct}%</span>
@@ -348,7 +358,7 @@ export default function Exam({ user, data }) {
           {total === 0 ? (
             <>
               <div className="text-5xl mb-3">📭</div>
-              <p className="text-xl font-black text-on-surface">No questions in "{filterLabel}"</p>
+              <p className="text-xl font-black text-on-surface">No {filterLabel} questions left</p>
               <p className="text-on-surface-variant mt-1 text-sm">Pick another filter or category to keep going.</p>
             </>
           ) : (

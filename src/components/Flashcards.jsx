@@ -9,12 +9,14 @@ function mark(prev, quality) {
   }
 }
 
+// Filter chips are toggles: any combination can be on. Default is New + Forgot.
 const FILTERS = [
   { key: 'new',    label: 'New',    hint: 'Not reviewed yet' },
   { key: 'forgot', label: 'Forgot', hint: 'Marked Forgot last time' },
   { key: 'known',  label: 'Known',  hint: 'Marked Got it last time' },
-  { key: 'all',    label: 'All',    hint: 'Every card in the chapter' },
 ]
+const DEFAULT_FILTER = ['new', 'forgot']
+const filterLabel = (f) => f.length === FILTERS.length ? 'all' : FILTERS.filter(x => f.includes(x.key)).map(x => x.label.toLowerCase()).join(' + ')
 
 function statusOf(p) {
   if (!p) return 'new'
@@ -33,7 +35,7 @@ export default function Flashcards({ user, data }) {
   const [cards, setCards]         = useState([])
   const [progress, setProgress]   = useState({})
   const [chapter, setChapter]     = useState('All chapters')
-  const [filter, setFilter]       = useState('all')
+  const [filter, setFilter]       = useState(DEFAULT_FILTER)
   const [queue, setQueue]         = useState([])
   const [idx, setIdx]             = useState(0)
   const [flipped, setFlipped]     = useState(false)
@@ -106,9 +108,7 @@ export default function Flashcards({ user, data }) {
   }
 
   function poolFor(ch, f, prog) {
-    const filtered = chapterCards(ch)
-    if (f === 'all') return filtered
-    return filtered.filter(c => statusOf(prog[c.id]) === f)
+    return chapterCards(ch).filter(c => f.includes(statusOf(prog[c.id])))
   }
 
   function shuffle(arr) {
@@ -153,8 +153,9 @@ export default function Flashcards({ user, data }) {
   const chKnown    = countBy(chCards, 'known')
   const chForgot   = countBy(chCards, 'forgot')
   const chNew      = chTotal - chKnown - chForgot
-  const filterCount = { new: chNew, forgot: chForgot, known: chKnown, all: chTotal }
-  const startCount = filterCount[filter]
+  const filterCount = { new: chNew, forgot: chForgot, known: chKnown }
+  const startCount = filter.reduce((n, k) => n + filterCount[k], 0)
+  const toggleFilter = (k) => setFilter(f => f.includes(k) ? f.filter(x => x !== k) : [...f, k])
   const pct        = queue.length ? Math.round(idx / queue.length * 100) : 0
 
   const syncColor = sync === 'saved' ? 'bg-secondary' : sync === 'saving' ? 'bg-amber-500' : 'bg-error'
@@ -166,7 +167,7 @@ export default function Flashcards({ user, data }) {
       <h2 className="text-2xl font-black text-on-surface mb-2">Session complete!</h2>
       <p className="text-on-surface-variant text-sm mb-8 max-w-xs">
         {session.known + session.forgot === 0
-          ? `No cards match "${FILTERS.find(f => f.key === filter)?.label}" in this chapter. Pick another filter to keep going.`
+          ? `No ${filterLabel(filter)} cards left in this chapter. Change the filter to keep going.`
           : `Reviewed ${session.known + session.forgot} cards: ${session.known} known, ${session.forgot} forgot. Nothing left in this filter for now.`}
       </p>
       <div className="flex items-center gap-2 text-sm text-on-surface-variant mb-6">
@@ -314,11 +315,11 @@ export default function Flashcards({ user, data }) {
           </div>
 
           <p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant mb-2">Which cards</p>
-          <div className="grid grid-cols-4 gap-2 mb-4">
+          <div className="grid grid-cols-3 gap-2 mb-2">
             {FILTERS.map(f => {
-              const active = filter === f.key
+              const active = filter.includes(f.key)
               return (
-                <button key={f.key} onClick={() => setFilter(f.key)} title={f.hint}
+                <button key={f.key} onClick={() => toggleFilter(f.key)} title={f.hint}
                   className={`rounded-xl py-2.5 text-center transition-all active:scale-95 border
                     ${active ? 'bg-primary text-on-primary border-primary shadow-md shadow-primary/20' : 'bg-surface-container-low text-on-surface border-transparent'}`}>
                   <p className="text-xs font-bold">{f.label}</p>
@@ -327,12 +328,15 @@ export default function Flashcards({ user, data }) {
               )
             })}
           </div>
-          <p className="text-xs text-on-surface-variant mb-4">{FILTERS.find(f => f.key === filter)?.hint}. Cards keep coming until you stop.</p>
+          <div className="flex justify-between items-center mb-4">
+            <p className="text-xs text-on-surface-variant">Tap to turn each group on or off. Cards keep coming until you stop.</p>
+            <button onClick={() => setFilter(DEFAULT_FILTER)} className="text-xs font-bold text-primary whitespace-nowrap ml-3 active:opacity-70">Reset</button>
+          </div>
 
           <button onClick={start} disabled={startCount === 0}
             className="w-full bg-primary text-on-primary font-bold py-4 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-primary/20 disabled:opacity-40 disabled:shadow-none">
             <span className="material-symbols-outlined sym-filled text-[20px]">play_arrow</span>
-            {startCount > 0 ? `Study ${FILTERS.find(f => f.key === filter)?.label.toLowerCase()} cards` : 'No cards in this filter'}
+            {filter.length === 0 ? 'Pick at least one group' : startCount > 0 ? `Study ${startCount} ${filterLabel(filter)} cards` : 'No cards in this filter'}
           </button>
         </div>
       </div>
