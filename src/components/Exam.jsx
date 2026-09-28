@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { saveProgress, getProgress, updateLeaderboard } from '../lib/storage.js'
+import { saveProgress, getProgress, updateLeaderboard, mergeNewest } from '../lib/storage.js'
 
 const CATEGORIES = [
   'All categories','Financial Analysis','Financial-Information Management',
@@ -70,10 +70,14 @@ export default function Exam({ user, data }) {
       if (!s) return
       if (s.exams) setHistory(s.exams)
       if (s.questions) {
-        setQprog(s.questions)
+        // Never let an older server copy erase answers already saved on this device.
+        let local = {}
+        try { local = JSON.parse(localStorage.getItem(PROG_KEY) || '{}').questions || {} } catch {}
+        const merged = mergeNewest(local, s.questions, 'last')
+        setQprog(merged)
         try {
           const st = JSON.parse(localStorage.getItem(PROG_KEY) || '{}')
-          st.questions = s.questions
+          st.questions = merged
           localStorage.setItem(PROG_KEY, JSON.stringify(st))
         } catch {}
       }

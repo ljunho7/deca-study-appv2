@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { saveProgress, getProgress } from '../lib/storage.js'
+import { saveProgress, getProgress, mergeNewest } from '../lib/storage.js'
 
 function mark(prev, quality) {
   return {
@@ -53,14 +53,17 @@ export default function Flashcards({ user, data }) {
       setProgress(stored.flashcards || {})
     } catch {}
     getProgress(user.key).then(s => {
-      if (s?.flashcards) {
-        setProgress(s.flashcards)
-        try {
-          const stored = JSON.parse(localStorage.getItem(PROG_KEY) || '{}')
-          stored.flashcards = s.flashcards
-          localStorage.setItem(PROG_KEY, JSON.stringify(stored))
-        } catch {}
-      }
+      if (!s?.flashcards) return
+      // Never let an older server copy erase answers already saved on this device.
+      let local = {}
+      try { local = JSON.parse(localStorage.getItem(PROG_KEY) || '{}').flashcards || {} } catch {}
+      const merged = mergeNewest(local, s.flashcards, 'lastReviewed')
+      setProgress(merged)
+      try {
+        const stored = JSON.parse(localStorage.getItem(PROG_KEY) || '{}')
+        stored.flashcards = merged
+        localStorage.setItem(PROG_KEY, JSON.stringify(stored))
+      } catch {}
     }).catch(() => {})
   }, [data])
 

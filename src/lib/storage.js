@@ -53,3 +53,15 @@ export async function savePITracker(data) {
     })
   } catch {}
 }
+
+// Merge two per-item progress maps, keeping the newer entry for each id.
+// Used when the server copy comes back older than what this device already
+// has (the blob CDN can serve a stale copy for up to a minute after a save).
+export function mergeNewest(local = {}, server = {}, tsKey = 'last') {
+  const out = { ...server }
+  for (const [id, entry] of Object.entries(local)) {
+    const sv = server[id]
+    if (!sv || (entry?.[tsKey] || 0) >= (sv?.[tsKey] || 0)) out[id] = entry
+  }
+  return out
+}
