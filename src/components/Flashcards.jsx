@@ -211,6 +211,7 @@ export default function Flashcards({ user, data }) {
                   </div>
                   {card.type === 'pi' && <div className="text-[10px] font-bold bg-amber-50 text-amber-800 px-3 py-1 rounded-full">★ PI topic</div>}
                   {card.type === 'trend' && <div className="text-[10px] font-bold bg-emerald-50 text-emerald-800 px-3 py-1 rounded-full">🌐 2025/26 trend</div>}
+                  {card.type === 'exam2026' && <div className="text-[10px] font-bold bg-yellow-50 text-yellow-800 px-3 py-1 rounded-full">★ New from 2026 exams</div>}
                 </div>
                 <p className="text-sm italic text-on-surface-variant/70 font-medium">Tap to reveal definition</p>
               </>
