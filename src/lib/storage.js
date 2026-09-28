@@ -1,21 +1,22 @@
 // All data goes through /api/* serverless functions
 
 export async function getProgress(username) {
-  try {
-    const res = await fetch(`/api/progress?user=${encodeURIComponent(username)}`)
-    if (!res.ok) return null
-    return res.json()
-  } catch { return null }
+  // Throws when the server cannot be reached or storage is broken, so callers
+  // can tell "no progress yet" apart from "server not working".
+  const res = await fetch(`/api/progress?user=${encodeURIComponent(username)}`, { cache: 'no-store' })
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`)
+  return res.json()
 }
 
 export async function saveProgress(username, data) {
-  try {
-    await fetch('/api/progress', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user: username, data })
-    })
-  } catch {}
+  // Throws on failure so the UI shows "Not saved" instead of a false "Saved".
+  const res = await fetch('/api/progress', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user: username, data })
+  })
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`)
+  return res.json()
 }
 
 export async function getLeaderboard() {
@@ -27,6 +28,7 @@ export async function getLeaderboard() {
 }
 
 export async function updateLeaderboard(username, stats) {
+  // Leaderboard is not shown any more; never let it block saving.
   try {
     await fetch('/api/leaderboard', {
       method: 'POST',

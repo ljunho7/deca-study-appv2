@@ -70,7 +70,7 @@ export default function Flashcards({ user, data, questions }) {
 
   useEffect(() => {
     const timer = setInterval(() => {
-      if (pendingRef.current) { push(pendingRef.current); pendingRef.current = null }
+      if (pendingRef.current) { const p = pendingRef.current; push(p).then(ok => { if (ok && pendingRef.current === p) pendingRef.current = null }) }
     }, 30000)
     const flush = () => {
       if (pendingRef.current) {
@@ -91,8 +91,8 @@ export default function Flashcards({ user, data, questions }) {
 
   async function push(fc) {
     setSync('saving')
-    try { await saveProgress(user.key, buildFull(fc)); setSync('saved') }
-    catch { setSync('unsaved') }
+    try { await saveProgress(user.key, buildFull(fc)); setSync('saved'); return true }
+    catch { setSync('unsaved'); return false }
   }
 
   const persist = useCallback((newProg) => {
@@ -104,7 +104,7 @@ export default function Flashcards({ user, data, questions }) {
     // Save to the server right away after every answer. If it fails, the
     // 30 s timer and the tab-hide beacon retry with the latest progress.
     pendingRef.current = newProg
-    push(newProg).then(() => { if (pendingRef.current === newProg) pendingRef.current = null })
+    push(newProg).then(ok => { if (ok && pendingRef.current === newProg) pendingRef.current = null })
   }, [PROG_KEY])
 
   function chapterCards(ch) {
@@ -173,7 +173,7 @@ export default function Flashcards({ user, data, questions }) {
   const pct        = queue.length ? Math.round(idx / queue.length * 100) : 0
 
   const syncColor = sync === 'saved' ? 'bg-secondary' : sync === 'saving' ? 'bg-amber-500' : 'bg-error'
-  const syncLabel = sync === 'saved' ? 'Saved' : sync === 'saving' ? 'Saving…' : 'Pending'
+  const syncLabel = sync === 'saved' ? 'Saved' : sync === 'saving' ? 'Saving…' : 'Not saved to server'
 
   if (mode === 'done') return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-8 text-center">

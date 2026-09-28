@@ -89,7 +89,7 @@ export default function Exam({ user, data, cards }) {
   // Background sync: every 30 s and on tab hide / close
   useEffect(() => {
     const timer = setInterval(() => {
-      if (pendingRef.current) { push(pendingRef.current); pendingRef.current = null }
+      if (pendingRef.current) { const p = pendingRef.current; push(p).then(ok => { if (ok && pendingRef.current === p) pendingRef.current = null }) }
     }, 30000)
     const flush = () => {
       if (pendingRef.current) {
@@ -115,8 +115,8 @@ export default function Exam({ user, data, cards }) {
 
   async function push(qp) {
     setSync('saving')
-    try { await saveProgress(user.key, buildFull(qp)); setSync('saved') }
-    catch { setSync('unsaved') }
+    try { await saveProgress(user.key, buildFull(qp)); setSync('saved'); return true }
+    catch { setSync('unsaved'); return false }
   }
 
   const persist = useCallback((newProg) => {
@@ -128,7 +128,7 @@ export default function Exam({ user, data, cards }) {
     // Save to the server right away after every answer. If it fails, the
     // 30 s timer and the tab-hide beacon retry with the latest progress.
     pendingRef.current = newProg
-    push(newProg).then(() => { if (pendingRef.current === newProg) pendingRef.current = null })
+    push(newProg).then(ok => { if (ok && pendingRef.current === newProg) pendingRef.current = null })
   }, [PROG_KEY])
 
   // ── Pools and counts ─────────────────────────────────────────────────
@@ -231,7 +231,7 @@ export default function Exam({ user, data, cards }) {
   }
 
   const syncDot = sync === 'saved' ? 'bg-secondary' : sync === 'saving' ? 'bg-amber-500' : 'bg-error'
-  const syncLabel = sync === 'saved' ? 'Saved' : sync === 'saving' ? 'Saving…' : 'Pending'
+  const syncLabel = sync === 'saved' ? 'Saved' : sync === 'saving' ? 'Saving…' : 'Not saved to server'
   const filterLabel = labelFor(filter)
 
   // ── MENU ──────────────────────────────────────────────────────────────
