@@ -1,20 +1,12 @@
-import { put, list } from '@vercel/blob'
+import { readJSON, writeJSON } from './_blob.js'
 
 // Progress is stored as one JSON blob per user: progress/<user>.json
 // POST merges the incoming copy with what is already stored (newest entry per
 // card/question wins, exam history is combined), so a phone and a laptop
 // saving at different times never erase each other's answers.
 
-const TOKEN = process.env.BLOB_READ_WRITE_TOKEN
 const path = (user) => `progress/${encodeURIComponent(user)}.json`
-
-async function readStored(user) {
-  const { blobs } = await list({ prefix: path(user), token: TOKEN })
-  if (!blobs || blobs.length === 0) return null
-  const r = await fetch(`${blobs[0].url}?t=${Date.now()}`, { cache: 'no-store' })
-  if (!r.ok) throw new Error(`blob fetch ${r.status}`)
-  return r.json()
-}
+const readStored = (user) => readJSON(path(user))
 
 function newest(a = {}, b = {}, ts) {
   const out = { ...a }
@@ -43,10 +35,6 @@ function mergeProgress(stored, incoming) {
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store')
-  if (!TOKEN) {
-    return res.status(500).json({ error: 'Server storage is not set up: BLOB_READ_WRITE_TOKEN is missing. Connect a Blob store to this Vercel project.' })
-  }
-
   if (req.method === 'GET') {
     const { user } = req.query
     if (!user) return res.status(400).json({ error: 'Missing user' })
@@ -65,9 +53,7 @@ export default async function handler(req, res) {
     if (!user || !data) return res.status(400).json({ error: 'Missing user or data' })
     try {
       const merged = mergeProgress(await readStored(user), data)
-      await put(path(user), JSON.stringify(merged), {
-        access: 'public', token: TOKEN, addRandomSuffix: false, cacheControlMaxAge: 60,
-      })
+      await writeJSON(path(user), merged)
       return res.status(200).json({ ok: true, data: merged })
     } catch (e) {
       return res.status(500).json({ error: `Could not save progress: ${e.message}` })
