@@ -59,7 +59,6 @@ export default function Home({ user, onTabChange, cards, questions }) {
   const features = [
     { tab: 'cards',   icon: 'style',      color: 'bg-primary/10 text-primary',    title: 'Flashcards',     sub: `${(cards || []).length.toLocaleString()} terms • linked to exam questions` },
     { tab: 'exam',    icon: 'edit_note',  color: 'bg-secondary/10 text-secondary', title: 'Practice exam',  sub: `${(questions || []).length.toLocaleString()} questions • linked to flashcards` },
-    { tab: 'pi',      icon: 'fact_check', color: 'bg-tertiary/10 text-tertiary',   title: 'PI tracker',     sub: 'Coverage map • Shared with team' },
   ]
 
   return (

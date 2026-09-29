@@ -38,24 +38,6 @@ export async function updateLeaderboard(username, stats) {
   } catch {}
 }
 
-export async function getPITracker() {
-  try {
-    const res = await fetch('/api/pi-tracker')
-    if (!res.ok) return {}
-    return res.json()
-  } catch { return {} }
-}
-
-export async function savePITracker(data) {
-  try {
-    await fetch('/api/pi-tracker', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    })
-  } catch {}
-}
-
 // Merge two per-item progress maps, keeping the newer entry for each id.
 // Used when the server copy comes back older than what this device already
 // has (the blob CDN can serve a stale copy for up to a minute after a save).

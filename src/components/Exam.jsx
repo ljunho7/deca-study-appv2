@@ -499,7 +499,7 @@ export default function Exam({ user, data, cards }) {
             </span>
           )}
         </div>
-        <h2 className="text-xl font-bold text-on-surface leading-snug mb-7">{q.question}</h2>
+        <h2 className="text-base font-semibold text-on-surface leading-snug mb-6">{q.question}</h2>
         <div className="space-y-3">
           {['A','B','C','D'].map(opt => {
             const val = q[opt]

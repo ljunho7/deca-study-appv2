@@ -3,7 +3,6 @@ import Login from './components/Login.jsx'
 import Home from './components/Home.jsx'
 import Flashcards from './components/Flashcards.jsx'
 import Exam from './components/Exam.jsx'
-import PITracker from './components/PITracker.jsx'
 import Profile from './components/Profile.jsx'
 import ReportBug from './components/ReportBug.jsx'
 import { getProgress, saveProgress, mergeNewest } from './lib/storage.js'
@@ -14,7 +13,6 @@ const TABS = [
   { key: 'home',    label: 'Home',    icon: 'home' },
   { key: 'cards',   label: 'Cards',   icon: 'style' },
   { key: 'exam',    label: 'Exam',    icon: 'edit_note' },
-  { key: 'pi',      label: 'PIs',     icon: 'fact_check' },
   { key: 'profile', label: 'Profile', icon: 'person' },
 ]
 
@@ -101,7 +99,6 @@ export default function App() {
     home:    <Home user={user} onTabChange={setTab} cards={flashcardsData} questions={questionsData} />,
     cards:   <Flashcards user={user} data={flashcardsData} questions={questionsData} />,
     exam:    <Exam user={user} data={questionsData} cards={flashcardsData} />,
-    pi:      <PITracker user={user} />,
     profile: <Profile user={user} cards={flashcardsData} questions={questionsData} onLogout={() => { localStorage.removeItem('deca_user'); setUser(null) }} />,
   }
 
