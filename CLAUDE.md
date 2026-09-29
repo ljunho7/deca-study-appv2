@@ -4,7 +4,7 @@ Read this first in every session. Put this file at the repo root so Claude Code 
 
 ## What this is
 
-A study app for a high school DECA competitor in **ACT (Accounting Applications Series)**, which uses the Finance cluster exam. Flashcards linked to real exam questions, an endless practice exam, and a review cascade that ties the two together. Companion to a 14-chapter Word study guide (`DECA_Study_Guide_2026.docx`, kept outside the repo).
+A study app for a high school DECA competitor in **ACT (Accounting Applications Series)**, which uses the Finance cluster exam. Flashcards linked to real exam questions, a practice exam, and a review cascade that ties the two together. Companion to a 14-chapter Word study guide (`DECA_Study_Guide_2026.docx`, kept outside the repo).
 
 ## Repo, deploy, local
 
@@ -46,8 +46,8 @@ git push origin main   # Vercel builds automatically
 ## App behavior
 
 - Login is fixed to two users: **Hannah (0325)** and **Debug (0000)**. No sign-up. Do not add a registration flow.
-- Cards tab: filters New / Forgot / Review / Known (multi-select, default New + Forgot + Review), endless study, two responses only (Forgot, Got it). Card back lists linked exam questions with all four choices; tap to reveal answer and explanation.
-- Exam tab: top dropdown picks the exam year (All years or one year); the category list at the bottom picks the category ("All categories" is its first row). Filters New / Incorrect / Hard / Review / Easy (default New + Incorrect + Hard + Review), endless, Hard/Easy rating above the question, linked flashcards shown after each answer.
+- Cards tab: filters New / Forgot / Review / Known (multi-select, default New + Forgot + Review), each set ends after its last card (no second round; changed Sept 29, 2026), two responses only (Forgot, Got it). Card back lists linked exam questions with all four choices; tap to reveal answer and explanation.
+- Exam tab: top dropdown picks the exam year (All years or one year); the category list at the bottom picks the category ("All categories" is its first row). Filters New / Incorrect / Hard / Review / Easy (default New + Incorrect + Hard + Review), each set ends after its last question and shows results (no second round), Hard/Easy rating above the question, linked flashcards shown after each answer.
 - Review cascade (`src/lib/review.js`): card marked Forgot → all linked questions become Review. Question answered Incorrect or rated Hard → all linked cards become Review. Review clears on the next answer.
 - Home shows Cards and Exam dashboards. The leaderboard was removed; do not bring it back.
 - Tabs are Home, Cards, Exam, Profile. The PIs tab (shared PI tracker) was removed on Sept 29, 2026; its old checklist data is still in Blob at `shared/pi-tracker.json`, and the code is in git history.

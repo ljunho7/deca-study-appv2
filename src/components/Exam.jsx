@@ -217,21 +217,16 @@ export default function Exam({ user, data, cards }) {
     return newProg
   }
 
-  // Endless: when the queue runs out, rebuild it from the same filter.
-  // Questions that no longer match the filter drop out on their own.
-  function advance(newProg) {
+  // The set ends after its last question (no second round): show the results.
+  function advance() {
     setNotice(''); setOpenCard(null)
     if (cur + 1 < queue.length) { setCur(c => c + 1); setSelected(null); return }
-    const q = shuffle(poolFor(category, filter, newProg || qprog))
-    if (q.length === 0) { finish(); return }
-    setQueue(q); setCur(0); setSelected(null)
+    finish()
   }
 
   function next(tag) {
-    const q = queue[cur]
-    let np = null
-    if (tag) np = record(q, tag)   // 'hard' or 'easy' after a correct answer
-    advance(np)
+    if (tag) record(queue[cur], tag)   // 'hard' or 'easy' after a correct answer
+    advance()
   }
 
   async function finish() {
@@ -323,7 +318,7 @@ export default function Exam({ user, data, cards }) {
               })}
             </div>
             <div className="flex justify-between items-center mb-4">
-              <p className="text-xs text-on-surface-variant">Tap to turn each group on or off. No timer, no limit: questions keep coming until you tap Finish or run out. Review = a linked flashcard was marked Forgot.</p>
+              <p className="text-xs text-on-surface-variant">Tap to turn each group on or off. No timer. The set ends after its last question, or tap Finish to stop early. Review = a linked flashcard was marked Forgot.</p>
               <button onClick={() => setFilter(DEFAULT_FILTER)} className="text-xs font-bold text-primary whitespace-nowrap ml-3 active:opacity-70">Reset</button>
             </div>
 

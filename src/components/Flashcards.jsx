@@ -42,7 +42,7 @@ export default function Flashcards({ user, data, questions }) {
   const [idx, setIdx]             = useState(0)
   const [flipped, setFlipped]     = useState(false)
   const [mode, setMode]           = useState('menu')
-  const [session, setSession]     = useState({ known: 0, forgot: 0, rounds: 0 })
+  const [session, setSession]     = useState({ known: 0, forgot: 0 })
   const [sync, setSync]           = useState('saved')
   const [notice, setNotice]       = useState('')
   const [openQ, setOpenQ]         = useState(null)
@@ -146,17 +146,8 @@ export default function Flashcards({ user, data, questions }) {
   function start() {
     const q = shuffle(poolFor(chapter, filter, progress))
     setQueue(q); setIdx(0); setFlipped(false)
-    setSession({ known: 0, forgot: 0, rounds: 1 })
+    setSession({ known: 0, forgot: 0 })
     setMode(q.length === 0 ? 'done' : 'study')
-  }
-
-  // Endless study: when the queue runs out, rebuild it from the same filter
-  // (cards that no longer match the filter drop out) and keep going.
-  function nextRound(newProg, mk) {
-    const q = shuffle(poolFor(chapter, filter, newProg, mk))
-    if (q.length === 0) { setMode('done'); return }
-    setQueue(q); setIdx(0); setFlipped(false)
-    setSession(s => ({ ...s, rounds: s.rounds + 1 }))
   }
 
   function respond(quality) {
@@ -169,13 +160,13 @@ export default function Flashcards({ user, data, questions }) {
       setNotice(`${card.questions.length} related exam question${card.questions.length > 1 ? 's' : ''} marked for review`)
     } else setNotice('')
     // Forgot bookmarks the card (written before persist so one save carries it).
-    let mk = marks
-    if (quality !== 2 && !isMarked(marks, card.id)) { mk = setMark(user.key, 'cards', card.id, true); setMarks(mk) }
+    if (quality !== 2 && !isMarked(marks, card.id)) setMarks(setMark(user.key, 'cards', card.id, true))
     setProgress(newProg)
     persist(newProg)
     setSession(s => ({ ...s, known: s.known + (quality === 2 ? 1 : 0), forgot: s.forgot + (quality === 2 ? 0 : 1) }))
     setOpenQ(null)
-    if (idx + 1 >= queue.length) nextRound(newProg, mk)
+    // The set ends after its last card (no second round).
+    if (idx + 1 >= queue.length) setMode('done')
     else { setIdx(i => i + 1); setFlipped(false) }
   }
 
@@ -205,7 +196,7 @@ export default function Flashcards({ user, data, questions }) {
       <p className="text-on-surface-variant text-sm mb-8 max-w-xs">
         {session.known + session.forgot === 0
           ? `No ${filterLabel(filter)} cards left in this chapter. Change the filter to keep going.`
-          : `Reviewed ${session.known + session.forgot} cards: ${session.known} known, ${session.forgot} forgot. Nothing left in this filter for now.`}
+          : `You finished the set: ${session.known + session.forgot} cards, ${session.known} known, ${session.forgot} forgot.`}
       </p>
       <div className="flex items-center gap-2 text-sm text-on-surface-variant mb-6">
         <span className={`w-2 h-2 rounded-full ${syncColor}`} />
@@ -235,7 +226,7 @@ export default function Flashcards({ user, data, questions }) {
               <span className={`w-2 h-2 rounded-full ${syncColor}`} />
               <span className="text-[11px] font-bold text-on-secondary-container uppercase tracking-wide">{syncLabel}</span>
             </div>
-            <span className="text-sm font-bold text-on-surface-variant">{idx + 1} / {queue.length}{session.rounds > 1 ? ` · round ${session.rounds}` : ''}</span>
+            <span className="text-sm font-bold text-on-surface-variant">{idx + 1} / {queue.length}</span>
           </div>
         </div>
         <div className="text-sm text-on-surface-variant px-5 pb-2 bg-background">
@@ -420,7 +411,7 @@ export default function Flashcards({ user, data, questions }) {
             })}
           </div>
           <div className="flex justify-between items-center mb-4">
-            <p className="text-xs text-on-surface-variant">Tap to turn each group on or off. Cards keep coming until you stop. Review = a linked exam question was missed or felt hard.</p>
+            <p className="text-xs text-on-surface-variant">Tap to turn each group on or off. The set ends after its last card. Review = a linked exam question was missed or felt hard.</p>
             <button onClick={() => setFilter(DEFAULT_FILTER)} className="text-xs font-bold text-primary whitespace-nowrap ml-3 active:opacity-70">Reset</button>
           </div>
 

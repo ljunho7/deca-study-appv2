@@ -1,6 +1,6 @@
 # deca-study-appv2
 
-DECA Finance study app (ACT, Accounting Applications Series): flashcards linked to real exam questions, an endless practice exam, and a review cascade that ties the two together.
+DECA Finance study app (ACT, Accounting Applications Series): flashcards linked to real exam questions, a practice exam, and a review cascade that ties the two together.
 
 Live: https://deca-study-appv2.vercel.app (Vercel deploys every push to `main`).
 
