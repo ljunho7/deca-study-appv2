@@ -49,6 +49,7 @@ export default function StudentProgress({ student, cards, questions }) {
   const cardList = cards || [], qList = questions || []
   const cCount = (st) => cardList.filter(c => cardStatus(fc[c.id]) === st).length
   const qCount = (st) => qList.filter(q => questionStatus(qp[q.id]) === st).length
+  const marked = (kind, list) => list.filter(x => prog?.bookmarks?.[kind]?.[x.id]?.on).length
   const cKnown = cCount('known'), cStudied = cardList.length - cCount('new')
   const attempts = Object.values(qp).reduce((s, e) => s + (e.attempts || 0), 0)
   const correct  = Object.values(qp).reduce((s, e) => s + (e.correct || 0), 0)
@@ -105,7 +106,7 @@ export default function StudentProgress({ student, cards, questions }) {
             <p className="text-[11px] text-on-surface-variant mt-2">Last 7 days: {cardsWeek} cards and {qWeek} questions studied.</p>
           </Section>
 
-          <Section title={`Flashcards · ${cStudied} of ${cardList.length} studied`}>
+          <Section title={`Flashcards · ${cStudied} of ${cardList.length} studied · ★ ${marked('cards', cardList)}`}>
             <div className="grid grid-cols-4 gap-1.5">
               <Stat label="Known"  val={cKnown}            color="text-secondary" />
               <Stat label="Review" val={cCount('review')}  color="text-violet-700" />
@@ -114,7 +115,7 @@ export default function StudentProgress({ student, cards, questions }) {
             </div>
           </Section>
 
-          <Section title={`Exam questions · ${qList.length - qCount('new')} of ${qList.length} answered${attempts ? ` · ${Math.round(correct / attempts * 100)}% correct` : ''}`}>
+          <Section title={`Exam questions · ${qList.length - qCount('new')} of ${qList.length} answered${attempts ? ` · ${Math.round(correct / attempts * 100)}% correct` : ''} · ★ ${marked('questions', qList)}`}>
             <div className="grid grid-cols-5 gap-1.5">
               <Stat label="Easy"      val={qCount('easy')}      color="text-secondary" />
               <Stat label="Hard"      val={qCount('hard')}      color="text-tertiary-container" />

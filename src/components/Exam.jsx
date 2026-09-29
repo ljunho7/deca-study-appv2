@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { saveProgress, getProgress, updateLeaderboard, mergeNewest } from '../lib/storage.js'
 import { flagCardsForReview, readProgress, cardStatus, questionStatus } from '../lib/review.js'
 import { setReportContext } from '../lib/report.js'
+import { readMarks, setMark, isMarked } from '../lib/bookmarks.js'
+import { StarButton, BookmarkedOnly } from './Bookmark.jsx'
 
 const CATEGORIES = [
   'All categories','Financial Analysis','Financial-Information Management',
@@ -60,6 +62,17 @@ export default function Exam({ user, data, cards }) {
   const pendingRef = useRef(null)
   const sessionRef = useRef(session)
   const PROG_KEY   = `deca_progress_${user.key}`
+
+  // ★ Bookmarks: on/off only by tapping the star; Incorrect turns one on.
+  // The ref keeps the latest map for queue rebuilds in the same click.
+  const [marks, setMarks]             = useState(() => readMarks(user.key, 'questions'))
+  const [starredOnly, setStarredOnly] = useState(false)
+  const marksRef = useRef(marks)
+  const updateMarks = (m) => { marksRef.current = m; setMarks(m) }
+  function toggleMark(id) {
+    updateMarks(setMark(user.key, 'questions', id, !isMarked(marksRef.current, id)))
+    persist(qprog)
+  }
 
   useEffect(() => { sessionRef.current = session }, [session])
 
@@ -144,10 +157,12 @@ export default function Exam({ user, data, cards }) {
   const years = data ? [...new Set(data.map(q => String(q.year)))].filter(y => y && y !== 'undefined').sort((a, b) => b.localeCompare(a)) : []
   const yearQuestions = !data ? [] : (year === 'All years' ? data : data.filter(q => String(q.year) === year))
   const catQuestions = (cat) => cat === 'All categories' ? yearQuestions : yearQuestions.filter(q => q.category === cat)
-  const poolFor = (cat, f, prog) => catQuestions(cat).filter(q => f.includes(statusOf(prog[q.id])))
+  const inScope = (list) => starredOnly ? list.filter(q => isMarked(marksRef.current, q.id)) : list
+  const poolFor = (cat, f, prog) => inScope(catQuestions(cat)).filter(q => f.includes(statusOf(prog[q.id])))
   const countBy = (list, st) => list.filter(q => statusOf(qprog[q.id]) === st).length
 
-  const catList = catQuestions(category)
+  const catMarked = catQuestions(category).filter(q => isMarked(marks, q.id)).length
+  const catList = inScope(catQuestions(category))
   const counts = {
     new: countBy(catList, 'new'), incorrect: countBy(catList, 'incorrect'),
     hard: countBy(catList, 'hard'), easy: countBy(catList, 'easy'),
@@ -188,6 +203,8 @@ export default function Exam({ user, data, cards }) {
       flagCardsForReview(user.key, q.cards, `question:${q.id}`)
       setNotice(`${q.cards.length} related flashcard${q.cards.length > 1 ? 's' : ''} marked for review`)
     }
+    // Incorrect bookmarks the question (written before persist so one save carries it).
+    if (status === 'incorrect' && !isMarked(marksRef.current, q.id)) updateMarks(setMark(user.key, 'questions', q.id, true))
     const prev = qprog[q.id] || {}
     const newProg = { ...qprog, [q.id]: {
       status,
@@ -291,6 +308,7 @@ export default function Exam({ user, data, cards }) {
             </div>
 
             <p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant mb-2">Which questions</p>
+            <BookmarkedOnly on={starredOnly} count={catMarked} noun="questions" onToggle={() => setStarredOnly(v => !v)} />
             <div className="grid grid-cols-5 gap-1.5 mb-2">
               {FILTERS.map(f => {
                 const active = filter.includes(f.key)
@@ -312,7 +330,7 @@ export default function Exam({ user, data, cards }) {
             <button onClick={start} disabled={!data || startCount === 0}
               className="w-full bg-primary text-on-primary font-bold py-4 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-primary/20 disabled:opacity-40 disabled:shadow-none">
               <span className="material-symbols-outlined sym-filled text-[20px]">play_arrow</span>
-              {!data ? 'Loading questions…' : filter.length === 0 ? 'Pick at least one group' : startCount > 0 ? `Start ${startCount} ${filterLabel} questions` : 'No questions in this filter'}
+              {!data ? 'Loading questions…' : filter.length === 0 ? 'Pick at least one group' : startCount > 0 ? `Start ${startCount} ${starredOnly ? '★ ' : ''}${filterLabel} questions` : 'No questions in this filter'}
             </button>
           </div>
 
@@ -489,7 +507,8 @@ export default function Exam({ user, data, cards }) {
       )}
 
       <div className="px-5 pt-6 pb-6 flex-1">
-        <div className="flex items-center gap-2 mb-3">
+        <div className="flex items-center gap-2 mb-3 min-h-[40px]">
+          <StarButton on={isMarked(marks, q.id)} onToggle={() => toggleMark(q.id)} className="-ml-2.5 flex-shrink-0" />
           {statusOf(qprog[q.id]) !== 'new' && (
             <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full
               ${statusOf(qprog[q.id]) === 'incorrect' ? 'bg-error-container/40 text-on-error-container' :

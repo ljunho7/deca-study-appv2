@@ -63,6 +63,8 @@ git push origin main   # Vercel builds automatically
 - `npm run build` runs the id check first. Watch for RETIRED IDS, CHANGED IDS and REUSED RETIRED IDS in the output. Accept an intended removal with `npm run check-ids -- --accept-retired`.
 - New cards and questions take the next free id printed by the check.
 - Progress only ever merges (newest entry per id wins). Never add code that prunes ids missing from the current content.
+- ★ Bookmark history is permanent, like progress. `bookmarks.cards[id]` / `bookmarks.questions[id]` = `{ on, at }` (`src/lib/bookmarks.js`); unbookmarking stores `on: false` and that entry is kept forever so older copies never switch it back on. `api/progress.js` and the login sync merge newest per id. Never prune, reset or drop bookmark entries.
+- Bookmarks can sit on any status. Incorrect (exam) and Forgot (cards) turn a bookmark on; only the student tapping the star turns it off. Both tabs have a "Bookmarked only" switch that combines with the status filters. On login, Forgot cards and Incorrect questions without a bookmark entry get one (one time catch up for older history).
 
 ## Content rules
 

@@ -17,6 +17,12 @@ Stack: React 18 + Vite, Tailwind via CDN, Vercel serverless functions (Node runt
 
 The top dropdown picks the exam year (All years, or a single year). The category list at the bottom picks the category, with "All categories" as its first row. Year and category combine.
 
+## Bookmarks (★)
+
+Every flashcard and exam question has a star. A bookmark sits on top of any status (new, forgot, review, known, incorrect, hard, easy). Answering a question incorrectly or marking a card Forgot bookmarks it automatically; only tapping the star again removes it. The Cards and Exam menus have a "Bookmarked only" switch that combines with the status filters.
+
+Bookmark history is permanent: it is stored in the progress record as `bookmarks.<cards|questions>[id] = { on, at }`, synced to the server, merged newest per id, and never pruned. Removing a bookmark is stored as `on: false`, so an older copy on another device can never switch it back on.
+
 ## Hannah's progress and usage time (Debug account)
 
 The Debug account's Profile shows Hannah's progress, read from the same server copy her devices sync to: last active time, usage time (today, last 7 days, all time, and a 7 day bar chart), cards and questions studied in the last 7 days, flashcard and exam question status counts, accuracy, and recent practice sessions. Tap refresh to reload.

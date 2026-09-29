@@ -8,6 +8,7 @@ import ReportBug from './components/ReportBug.jsx'
 import { getProgress, saveProgress, mergeNewest } from './lib/storage.js'
 import { setReportContext } from './lib/report.js'
 import { mergeUsage, startUsageTracking } from './lib/usage.js'
+import { mergeBookmarks, seedBookmarks } from './lib/bookmarks.js'
 
 const TABS = [
   { key: 'home',    label: 'Home',    icon: 'home' },
@@ -50,11 +51,13 @@ export default function App() {
           questions: mergeNewest(local.questions || {}, server.questions || {}, 'last'),
           exams, totalPoints: exams.reduce((s, e) => s + (e.score || 0), 0),
           usage: mergeUsage(server.usage, local.usage),
+          bookmarks: mergeBookmarks(server.bookmarks, local.bookmarks),
         }
         delete merged.empty
+        const seeded = seedBookmarks(merged)
         localStorage.setItem(KEY, JSON.stringify(merged))
         // Push back anything this device had that the server did not.
-        if (Object.keys(local.flashcards || {}).length || Object.keys(local.questions || {}).length || (local.exams || []).length) {
+        if (seeded || Object.keys(local.flashcards || {}).length || Object.keys(local.questions || {}).length || (local.exams || []).length) {
           await saveProgress(user.key, merged)
         }
         if (!cancelled) { setSyncState('ok'); setSyncError('') }

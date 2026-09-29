@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { saveProgress, getProgress, mergeNewest } from '../lib/storage.js'
 import { setReportContext } from '../lib/report.js'
 import { flagQuestionsForReview, cardStatus, questionStatus, readProgress } from '../lib/review.js'
+import { readMarks, setMark, isMarked } from '../lib/bookmarks.js'
+import { StarButton, BookmarkedOnly } from './Bookmark.jsx'
 
 function mark(prev, quality) {
   return {
@@ -44,8 +46,16 @@ export default function Flashcards({ user, data, questions }) {
   const [sync, setSync]           = useState('saved')
   const [notice, setNotice]       = useState('')
   const [openQ, setOpenQ]         = useState(null)
+  const [marks, setMarks]         = useState(() => readMarks(user.key, 'cards'))
+  const [starredOnly, setStarredOnly] = useState(false)
   const pendingRef                = useRef(null)
   const PROG_KEY                  = `deca_progress_${user.key}`
+
+  // ★ Bookmarks: on/off only by tapping the star; Forgot turns one on.
+  function toggleMark(id) {
+    setMarks(setMark(user.key, 'cards', id, !isMarked(marks, id)))
+    persist(progress)
+  }
 
   // Tell the bug report which card is on screen.
   useEffect(() => {
@@ -118,8 +128,10 @@ export default function Flashcards({ user, data, questions }) {
     return ch === 'All chapters' ? cards : cards.filter(c => c.chapter === ch)
   }
 
-  function poolFor(ch, f, prog) {
-    return chapterCards(ch).filter(c => f.includes(statusOf(prog[c.id])))
+  const inScope = (list, mk = marks) => starredOnly ? list.filter(c => isMarked(mk, c.id)) : list
+
+  function poolFor(ch, f, prog, mk = marks) {
+    return inScope(chapterCards(ch), mk).filter(c => f.includes(statusOf(prog[c.id])))
   }
 
   function shuffle(arr) {
@@ -140,8 +152,8 @@ export default function Flashcards({ user, data, questions }) {
 
   // Endless study: when the queue runs out, rebuild it from the same filter
   // (cards that no longer match the filter drop out) and keep going.
-  function nextRound(newProg) {
-    const q = shuffle(poolFor(chapter, filter, newProg))
+  function nextRound(newProg, mk) {
+    const q = shuffle(poolFor(chapter, filter, newProg, mk))
     if (q.length === 0) { setMode('done'); return }
     setQueue(q); setIdx(0); setFlipped(false)
     setSession(s => ({ ...s, rounds: s.rounds + 1 }))
@@ -156,11 +168,14 @@ export default function Flashcards({ user, data, questions }) {
       flagQuestionsForReview(user.key, card.questions, `card:${card.id}`)
       setNotice(`${card.questions.length} related exam question${card.questions.length > 1 ? 's' : ''} marked for review`)
     } else setNotice('')
+    // Forgot bookmarks the card (written before persist so one save carries it).
+    let mk = marks
+    if (quality !== 2 && !isMarked(marks, card.id)) { mk = setMark(user.key, 'cards', card.id, true); setMarks(mk) }
     setProgress(newProg)
     persist(newProg)
     setSession(s => ({ ...s, known: s.known + (quality === 2 ? 1 : 0), forgot: s.forgot + (quality === 2 ? 0 : 1) }))
     setOpenQ(null)
-    if (idx + 1 >= queue.length) nextRound(newProg)
+    if (idx + 1 >= queue.length) nextRound(newProg, mk)
     else { setIdx(i => i + 1); setFlipped(false) }
   }
 
@@ -168,7 +183,8 @@ export default function Flashcards({ user, data, questions }) {
   const qById = {}
   for (const q of (questions || [])) qById[q.id] = q
   const allKnown   = countBy(cards, 'known')
-  const chCards    = chapterCards(chapter)
+  const chMarked   = chapterCards(chapter).filter(c => isMarked(marks, c.id)).length
+  const chCards    = inScope(chapterCards(chapter))
   const chTotal    = chCards.length
   const chKnown    = countBy(chCards, 'known')
   const chForgot   = countBy(chCards, 'forgot')
@@ -240,7 +256,8 @@ export default function Flashcards({ user, data, questions }) {
         </div>
 
         {/* Card */}
-        <div className="px-5 flex-1">
+        <div className="px-5 flex-1 relative">
+          <StarButton on={isMarked(marks, card.id)} onToggle={() => toggleMark(card.id)} className="absolute top-3 right-8 z-10" />
           <button onClick={() => setFlipped(f => !f)}
             className="w-full rounded-3xl bg-surface-container-lowest shadow-[0px_20px_40px_rgba(26,27,33,0.06)] p-8 flex flex-col items-center justify-between text-center relative overflow-hidden min-h-[320px]">
             {/* Top accent bar */}
@@ -388,6 +405,7 @@ export default function Flashcards({ user, data, questions }) {
           </div>
 
           <p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant mb-2">Which cards</p>
+          <BookmarkedOnly on={starredOnly} count={chMarked} noun="cards" onToggle={() => setStarredOnly(v => !v)} />
           <div className="grid grid-cols-4 gap-2 mb-2">
             {FILTERS.map(f => {
               const active = filter.includes(f.key)
@@ -409,7 +427,7 @@ export default function Flashcards({ user, data, questions }) {
           <button onClick={start} disabled={startCount === 0}
             className="w-full bg-primary text-on-primary font-bold py-4 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-primary/20 disabled:opacity-40 disabled:shadow-none">
             <span className="material-symbols-outlined sym-filled text-[20px]">play_arrow</span>
-            {filter.length === 0 ? 'Pick at least one group' : startCount > 0 ? `Study ${startCount} ${filterLabel(filter)} cards` : 'No cards in this filter'}
+            {filter.length === 0 ? 'Pick at least one group' : startCount > 0 ? `Study ${startCount} ${starredOnly ? '★ ' : ''}${filterLabel(filter)} cards` : 'No cards in this filter'}
           </button>
         </div>
       </div>

@@ -30,8 +30,23 @@ export function mergeProgress(stored, incoming) {
     exams: uniq,
     totalPoints: uniq.reduce((s, e) => s + (e.score || 0), 0),
     usage: mergeUsage(stored.usage, incoming.usage),
+    bookmarks: mergeBookmarks(stored.bookmarks, incoming.bookmarks),
     lastActive: new Date().toISOString(),
   }
+}
+
+// Bookmarks per kind (see src/lib/bookmarks.js): newest { on, at } per id wins,
+// and "off" entries are kept so an older copy never turns a bookmark back on.
+function mergeBookmarks(a = {}, b = {}) {
+  const out = {}
+  for (const kind of new Set([...Object.keys(a || {}), ...Object.keys(b || {})])) {
+    const m = { ...(a?.[kind] || {}) }
+    for (const [id, e] of Object.entries(b?.[kind] || {})) {
+      if (!m[id] || (e?.at || 0) >= (m[id]?.at || 0)) m[id] = e
+    }
+    out[kind] = m
+  }
+  return out
 }
 
 // Usage seconds per device per day (see src/lib/usage.js): keep the larger count.
