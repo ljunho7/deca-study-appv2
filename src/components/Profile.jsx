@@ -1,4 +1,54 @@
 import { useState, useEffect } from 'react'
+import { fetchReports } from '../lib/report.js'
+
+// Bug reports are listed only for the test account.
+const ADMIN_KEY = 'debug'
+
+function Reports() {
+  const [data, setData]   = useState(null)
+  const [state, setState] = useState('loading')   // loading | ok | error
+  const [error, setError] = useState('')
+  const [open, setOpen]   = useState(null)
+
+  async function load() {
+    setState('loading')
+    try { setData(await fetchReports()); setState('ok') }
+    catch (e) { setError(e.message || 'Could not load'); setState('error') }
+  }
+  useEffect(() => { load() }, [])
+
+  const reports = data?.reports || []
+  const noteOf = (t = '') => (t.split('--- details')[0].replace(/^What happened:s*/, '').trim() || '(no note)')
+
+  return (
+    <div className="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-[0px_2px_8px_rgba(26,27,33,0.04)]">
+      <div className="px-5 py-3.5 border-b border-surface-container flex items-center justify-between">
+        <p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant">
+          Bug reports{data ? ` · ${data.total}` : ''}
+        </p>
+        <button onClick={load} aria-label="Refresh reports" className="text-primary active:opacity-70 flex items-center">
+          <span className={`material-symbols-outlined text-[20px] ${state === 'loading' ? 'animate-spin' : ''}`}>refresh</span>
+        </button>
+      </div>
+      {state === 'error' && <p className="px-5 py-3.5 text-xs text-error">Could not load reports ({error}).</p>}
+      {state !== 'error' && reports.length === 0 && (
+        <p className="px-5 py-3.5 text-xs text-on-surface-variant">{state === 'loading' ? 'Loading…' : 'No reports yet.'}</p>
+      )}
+      {reports.map(r => (
+        <button key={r.id} onClick={() => setOpen(open === r.id ? null : r.id)}
+          className="w-full text-left px-5 py-3.5 border-b border-surface-container last:border-0 active:bg-surface-container-low">
+          <p className="text-[11px] text-on-surface-variant">
+            <span className="font-bold text-on-surface">{r.user || 'not logged in'}</span>
+            {' · '}{r.screen || 'app'}{r.item ? ` · ${r.item}` : ''}{' · '}{r.at ? new Date(r.at).toLocaleString() : ''}
+          </p>
+          {open === r.id
+            ? <pre className="mt-2 text-xs text-on-surface whitespace-pre-wrap break-words font-sans">{r.text}</pre>
+            : <p className="mt-1 text-sm text-on-surface line-clamp-2">{noteOf(r.text)}</p>}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 const AVATAR_COLORS = [
   'bg-blue-600','bg-emerald-600','bg-violet-600','bg-rose-600',
@@ -85,6 +135,8 @@ export default function Profile({ user, onLogout }) {
             ))}
           </div>
         )}
+
+        {user.key === ADMIN_KEY && <Reports />}
 
         {/* About */}
         <div className="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-[0px_2px_8px_rgba(26,27,33,0.04)]">

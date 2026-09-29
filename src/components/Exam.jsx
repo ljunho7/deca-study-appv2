@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { saveProgress, getProgress, updateLeaderboard, mergeNewest } from '../lib/storage.js'
 import { flagCardsForReview, readProgress, cardStatus, questionStatus } from '../lib/review.js'
+import { setReportContext } from '../lib/report.js'
 
 const CATEGORIES = [
   'All categories','Financial Analysis','Financial-Information Management',
@@ -45,6 +46,7 @@ function shuffle(arr) {
 export default function Exam({ user, data, cards }) {
   const [mode,      setMode]      = useState('menu')
   const [category,  setCategory]  = useState('All categories')
+  const [year,      setYear]      = useState('All years')
   const [filter,    setFilter]    = useState(DEFAULT_FILTER)
   const [qprog,     setQprog]     = useState({})     // per-question status
   const [queue,     setQueue]     = useState([])
@@ -60,6 +62,12 @@ export default function Exam({ user, data, cards }) {
   const PROG_KEY   = `deca_progress_${user.key}`
 
   useEffect(() => { sessionRef.current = session }, [session])
+
+  // Tell the bug report which question is on screen.
+  useEffect(() => {
+    const q = mode === 'menu' || mode === 'results' ? null : queue[cur]
+    setReportContext({ item: q ? `question ${q.id}` : null })
+  }, [mode, queue, cur])
 
   // Load progress: localStorage first, then server
   useEffect(() => {
@@ -132,7 +140,10 @@ export default function Exam({ user, data, cards }) {
   }, [PROG_KEY])
 
   // ── Pools and counts ─────────────────────────────────────────────────
-  const catQuestions = (cat) => !data ? [] : (cat === 'All categories' ? data : data.filter(q => q.category === cat))
+  // Exam year (top dropdown) and category (list at the bottom) combine.
+  const years = data ? [...new Set(data.map(q => String(q.year)))].filter(y => y && y !== 'undefined').sort((a, b) => b.localeCompare(a)) : []
+  const yearQuestions = !data ? [] : (year === 'All years' ? data : data.filter(q => String(q.year) === year))
+  const catQuestions = (cat) => cat === 'All categories' ? yearQuestions : yearQuestions.filter(q => q.category === cat)
   const poolFor = (cat, f, prog) => catQuestions(cat).filter(q => f.includes(statusOf(prog[q.id])))
   const countBy = (list, st) => list.filter(q => statusOf(qprog[q.id]) === st).length
 
@@ -213,7 +224,7 @@ export default function Exam({ user, data, cards }) {
     if (total === 0) return
     const result = {
       date: new Date().toISOString(), score: s.correct, total,
-      category, filter, type: 'practice', pct: Math.round(s.correct / total * 100),
+      category, year, filter, type: 'practice', pct: Math.round(s.correct / total * 100),
     }
     setSync('saving')
     try {
@@ -253,11 +264,16 @@ export default function Exam({ user, data, cards }) {
 
         <div className="px-5 mt-3 space-y-3">
           <div className="bg-surface-container-lowest rounded-2xl p-4 shadow-[0px_2px_8px_rgba(26,27,33,0.04)]">
-            <p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant mb-2">Category</p>
-            <select value={category} onChange={e => setCategory(e.target.value)}
-              className="w-full bg-surface-container-low rounded-xl px-4 py-3 text-on-surface font-semibold text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 border-0 mb-4">
-              {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+            <p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant mb-2">Exam year</p>
+            <select value={year} onChange={e => setYear(e.target.value)}
+              className="w-full bg-surface-container-low rounded-xl px-4 py-3 text-on-surface font-semibold text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 border-0 mb-2">
+              <option value="All years">All years ({(data || []).length} questions)</option>
+              {years.map(y => <option key={y} value={y}>{y} exams ({data.filter(q => String(q.year) === y).length} questions)</option>)}
             </select>
+            <p className="text-xs text-on-surface-variant mb-4">
+              Category: <span className="font-semibold text-on-surface">{category}</span>
+              {category !== 'All categories' && <button onClick={() => setCategory('All categories')} className="ml-2 font-bold text-primary active:opacity-70">Clear</button>}
+            </p>
 
             <div className="grid grid-cols-5 gap-1.5 mb-4">
               {[
@@ -303,9 +319,9 @@ export default function Exam({ user, data, cards }) {
           {/* Per-category status */}
           {data && (
             <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant mb-3 mt-1">All categories</p>
+              <p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant mb-3 mt-1">Category{year !== 'All years' ? ` · ${year} exams` : ''}</p>
               <div className="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-[0px_2px_8px_rgba(26,27,33,0.04)]">
-                {CATEGORIES.slice(1).map((cat, i) => {
+                {CATEGORIES.map((cat, i) => {
                   const list = catQuestions(cat)
                   const tot = list.length
                   const inc = countBy(list, 'incorrect')
@@ -320,9 +336,9 @@ export default function Exam({ user, data, cards }) {
                   return (
                     <button key={cat} onClick={() => setCategory(cat)}
                       className={`w-full text-left px-5 py-3.5 active:bg-surface-container-low transition-colors
-                        ${category === cat ? 'bg-primary/5' : ''} ${i < CATEGORIES.length - 2 ? 'border-b border-surface-container' : ''}`}>
+                        ${category === cat ? 'bg-primary/5' : ''} ${i < CATEGORIES.length - 1 ? 'border-b border-surface-container' : ''}`}>
                       <div className="flex justify-between items-center mb-1.5 gap-2">
-                        <span className="text-sm font-semibold text-on-surface truncate">{cat}</span>
+                        <span className={`text-sm font-semibold truncate ${category === cat ? 'text-primary' : 'text-on-surface'}`}>{cat}</span>
                         <span className="text-xs text-on-surface-variant whitespace-nowrap">
                           <span className="font-semibold text-on-surface">{tot}</span> total
                         </span>
@@ -355,7 +371,7 @@ export default function Exam({ user, data, cards }) {
               {recent.map((e, i) => (
                 <div key={i} className={`px-5 py-3.5 flex items-center gap-3 ${i < recent.length - 1 ? 'border-b border-surface-container' : ''}`}>
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-on-surface">{e.category}{e.filter ? ` · ${labelFor(e.filter)}` : e.type === 'full' ? ' · Full' : ' · Drill'}</p>
+                    <p className="text-sm font-semibold text-on-surface">{e.year && e.year !== 'All years' ? `${e.year} · ` : ''}{e.category}{e.filter ? ` · ${labelFor(e.filter)}` : e.type === 'full' ? ' · Full' : ' · Drill'}</p>
                     <p className="text-xs text-on-surface-variant">{new Date(e.date).toLocaleDateString()}</p>
                   </div>
                   <span className={`text-lg font-black ${e.pct >= 75 ? 'text-secondary' : e.pct >= 60 ? 'text-tertiary-container' : 'text-error'}`}>{e.pct}%</span>
@@ -380,7 +396,7 @@ export default function Exam({ user, data, cards }) {
             <>
               <div className="text-5xl mb-3">📭</div>
               <p className="text-xl font-black text-on-surface">No {filterLabel} questions left</p>
-              <p className="text-on-surface-variant mt-1 text-sm">Pick another filter or category to keep going.</p>
+              <p className="text-on-surface-variant mt-1 text-sm">Pick another filter, year or category to keep going.</p>
             </>
           ) : (
             <>

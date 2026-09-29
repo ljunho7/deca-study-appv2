@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { saveProgress, getProgress, mergeNewest } from '../lib/storage.js'
+import { setReportContext } from '../lib/report.js'
 import { flagQuestionsForReview, cardStatus, questionStatus, readProgress } from '../lib/review.js'
 
 function mark(prev, quality) {
@@ -45,6 +46,12 @@ export default function Flashcards({ user, data, questions }) {
   const [openQ, setOpenQ]         = useState(null)
   const pendingRef                = useRef(null)
   const PROG_KEY                  = `deca_progress_${user.key}`
+
+  // Tell the bug report which card is on screen.
+  useEffect(() => {
+    const c = mode === 'study' ? queue[idx] : null
+    setReportContext({ item: c ? `card ${c.id} (${c.term})` : null })
+  }, [mode, queue, idx])
 
   useEffect(() => {
     if (!data) return

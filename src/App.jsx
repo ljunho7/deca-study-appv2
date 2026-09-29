@@ -5,7 +5,9 @@ import Flashcards from './components/Flashcards.jsx'
 import Exam from './components/Exam.jsx'
 import PITracker from './components/PITracker.jsx'
 import Profile from './components/Profile.jsx'
+import ReportBug from './components/ReportBug.jsx'
 import { getProgress, saveProgress, mergeNewest } from './lib/storage.js'
+import { setReportContext } from './lib/report.js'
 
 const TABS = [
   { key: 'home',    label: 'Home',    icon: 'home' },
@@ -64,13 +66,23 @@ export default function App() {
     return () => { cancelled = true }
   }, [user?.key])
 
+  // Keep the bug report context current. Cards and Exam set the item themselves.
+  useEffect(() => { setReportContext({ user: user?.key || null }) }, [user?.key])
+  useEffect(() => { setReportContext({ screen: user ? tab : 'login', item: null }) }, [tab, !!user])
+  useEffect(() => {
+    if (flashcardsData && questionsData) setReportContext({ content: `${flashcardsData.length} cards, ${questionsData.length} questions` })
+  }, [flashcardsData, questionsData])
+
   useEffect(() => {
     fetch('/flashcards.json').then(r => r.json()).then(setFlashcardsData).catch(() => {})
     fetch('/questions.json').then(r => r.json()).then(setQuestionsData).catch(() => {})
   }, [])
 
   if (!user) return (
-    <Login onLogin={u => { localStorage.setItem('deca_user', JSON.stringify(u)); setUser(u) }} />
+    <div className="relative">
+      <Login onLogin={u => { localStorage.setItem('deca_user', JSON.stringify(u)); setUser(u) }} />
+      <ReportBug />
+    </div>
   )
 
   if (syncState === 'syncing' && syncTick === 0) return (
@@ -86,13 +98,15 @@ export default function App() {
   }
 
   return (
-    <div className="flex flex-col" style={{ height: '100dvh' }}>
+    <div className="flex flex-col relative" style={{ height: '100dvh' }}>
+      <ReportBug />
       {syncState === 'error' && (
         <div className="bg-error-container text-on-error-container text-xs px-4 py-2 text-center">
           Progress is not being saved to the server, so it only stays on this device. ({syncError})
         </div>
       )}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden" key={syncTick}>
+      {/* Scrolls by touch, wheel and trackpad; the scroll bar itself is hidden (as in the USABO app). */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar" key={syncTick}>
         {screens[tab]}
       </div>
 

@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "vite",
+    "check-ids": "node scripts/check-ids.mjs",
+    "prebuild": "node scripts/check-ids.mjs",
     "build": "vite build",
     "preview": "vite preview"
   },
