@@ -50,7 +50,7 @@ git push origin main   # Vercel builds automatically
 - Exam tab: top dropdown picks the exam year (All years or one year); the category list at the bottom picks the category ("All categories" is its first row). Filters New / Incorrect / Hard / Review / Easy (default New + Incorrect + Hard + Review), endless, Hard/Easy rating above the question, linked flashcards shown after each answer.
 - Review cascade (`src/lib/review.js`): card marked Forgot → all linked questions become Review. Question answered Incorrect or rated Hard → all linked cards become Review. Review clears on the next answer.
 - Home shows Cards and Exam dashboards. The leaderboard was removed; do not bring it back.
-- Bug button (top right of every screen) sends a report to `POST /api/report` (saved in Blob under `reports/`). Reports are listed on the Debug account's Profile screen. Optional email copies need `RESEND_API_KEY` in Vercel (see README).
+- Bug button (top right of every screen) sends a report to `POST /api/report` (saved in Blob under `reports/`). Reports are listed on the Debug account's Profile screen, with a delete button per report and "Clear all". Optional email copies need `RESEND_API_KEY` in Vercel (see README).
 - The main scroll area hides its scroll bar (`no-scrollbar`); keep it that way.
 - Autosave: localStorage instantly, server sync shortly after each change and on tab hide/close via `sendBeacon`.
 

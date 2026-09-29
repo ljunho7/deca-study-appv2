@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { fetchReports } from '../lib/report.js'
+import { fetchReports, deleteReports } from '../lib/report.js'
 
 // Bug reports are listed only for the test account.
 const ADMIN_KEY = 'debug'
@@ -17,8 +17,15 @@ function Reports() {
   }
   useEffect(() => { load() }, [])
 
+  async function remove(id) {
+    if (!window.confirm(id ? 'Delete this report?' : `Delete all ${data?.total || 0} reports? This cannot be undone.`)) return
+    setState('loading')
+    try { await deleteReports(id); setOpen(null); await load() }
+    catch (e) { setError(e.message || 'Could not delete'); setState('error') }
+  }
+
   const reports = data?.reports || []
-  const noteOf = (t = '') => (t.split('--- details')[0].replace(/^What happened:s*/, '').trim() || '(no note)')
+  const noteOf = (t = '') => (t.split('--- details')[0].replace(/^What happened:\s*/, '').trim() || '(no note)')
 
   return (
     <div className="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-[0px_2px_8px_rgba(26,27,33,0.04)]">
@@ -26,25 +33,36 @@ function Reports() {
         <p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant">
           Bug reports{data ? ` · ${data.total}` : ''}
         </p>
-        <button onClick={load} aria-label="Refresh reports" className="text-primary active:opacity-70 flex items-center">
-          <span className={`material-symbols-outlined text-[20px] ${state === 'loading' ? 'animate-spin' : ''}`}>refresh</span>
-        </button>
+        <div className="flex items-center gap-3">
+          {reports.length > 0 && (
+            <button onClick={() => remove()} className="text-xs font-bold text-error active:opacity-70">Clear all</button>
+          )}
+          <button onClick={load} aria-label="Refresh reports" className="text-primary active:opacity-70 flex items-center">
+            <span className={`material-symbols-outlined text-[20px] ${state === 'loading' ? 'animate-spin' : ''}`}>refresh</span>
+          </button>
+        </div>
       </div>
       {state === 'error' && <p className="px-5 py-3.5 text-xs text-error">Could not load reports ({error}).</p>}
       {state !== 'error' && reports.length === 0 && (
         <p className="px-5 py-3.5 text-xs text-on-surface-variant">{state === 'loading' ? 'Loading…' : 'No reports yet.'}</p>
       )}
       {reports.map(r => (
-        <button key={r.id} onClick={() => setOpen(open === r.id ? null : r.id)}
-          className="w-full text-left px-5 py-3.5 border-b border-surface-container last:border-0 active:bg-surface-container-low">
+        <div key={r.id} onClick={() => setOpen(open === r.id ? null : r.id)} role="button"
+          className="w-full text-left px-5 py-3.5 border-b border-surface-container last:border-0 active:bg-surface-container-low cursor-pointer">
+          <div className="flex items-start justify-between gap-2">
           <p className="text-[11px] text-on-surface-variant">
             <span className="font-bold text-on-surface">{r.user || 'not logged in'}</span>
             {' · '}{r.screen || 'app'}{r.item ? ` · ${r.item}` : ''}{' · '}{r.at ? new Date(r.at).toLocaleString() : ''}
           </p>
+          <button onClick={e => { e.stopPropagation(); remove(r.id) }} aria-label="Delete report"
+            className="text-on-surface-variant active:text-error flex-shrink-0">
+            <span className="material-symbols-outlined text-[18px]">delete</span>
+          </button>
+          </div>
           {open === r.id
             ? <pre className="mt-2 text-xs text-on-surface whitespace-pre-wrap break-words font-sans">{r.text}</pre>
             : <p className="mt-1 text-sm text-on-surface line-clamp-2">{noteOf(r.text)}</p>}
-        </button>
+        </div>
       ))}
     </div>
   )

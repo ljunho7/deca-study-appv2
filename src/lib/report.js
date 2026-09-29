@@ -47,5 +47,13 @@ export async function fetchReports() {
   return out
 }
 
+// Deletes one report by id, or every report when id is omitted.
+export async function deleteReports(id) {
+  const r = await fetch(id ? `/api/report?id=${encodeURIComponent(id)}` : '/api/report?all=1', { method: 'DELETE' })
+  const out = await r.json().catch(() => ({}))
+  if (!r.ok || !out.ok) throw new Error(out.error || `HTTP ${r.status}`)
+  return out
+}
+
 export const mailtoHref = (note) =>
   `mailto:${REPORT_EMAIL}?subject=${encodeURIComponent(reportSubject())}&body=${encodeURIComponent(reportText(note).slice(0, 1800))}`

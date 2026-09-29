@@ -39,6 +39,16 @@ function devReports() {
           })
           return
         }
+        if (req.method === 'DELETE') {
+          const q = new URL(req.originalUrl || req.url, 'http://x').searchParams
+          const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => f.endsWith('.json')) : []
+          if (q.get('all')) { files.forEach(f => fs.unlinkSync(path.join(dir, f))); return send(200, { ok: true, deleted: files.length }) }
+          const id = q.get('id') || ''
+          if (!/^[\w-]+$/.test(id)) return send(400, { error: 'missing or bad id' })
+          const f = path.join(dir, `${id}.json`)
+          if (fs.existsSync(f)) fs.unlinkSync(f)
+          return send(200, { ok: true, deleted: 1 })
+        }
         if (req.method === 'GET') {
           const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => f.endsWith('.json')).sort().reverse() : []
           const reports = files.slice(0, 50).map(f => ({ id: f.slice(0, -5), ...JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')) }))

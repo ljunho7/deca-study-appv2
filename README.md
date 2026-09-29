@@ -22,7 +22,7 @@ The top dropdown picks the exam year (All years, or a single year). The category
 A small bug button sits in the top right corner of every screen. It opens a short form; "Send report" saves the report on the server, no email app needed. The report adds the screen, the card or question on screen, the user, the app build, the content size, time, URL, device, screen size and the last 8 JavaScript errors.
 
 * `POST /api/report` saves `reports/<time>-<random>.json` in the Blob store. `GET /api/report` returns the newest 50 and the total.
-* Reports are listed on the Profile screen of the Debug account (newest first, tap to expand, refresh button).
+* Reports are listed on the Profile screen of the Debug account (newest first, tap to expand, refresh button). The trash icon deletes one report and "Clear all" deletes every report (both ask first). `DELETE /api/report?id=<id>` and `DELETE /api/report?all=1` do the same.
 * If sending fails, the form offers "Email it" (a `mailto:` link) and "Copy the report".
 * In `npm run dev`, a Vite middleware stands in for the API and stores reports in `.data/reports/` (git ignored).
 * The report endpoint has no login. Reports hold only notes and device details; never put PINs or secrets in them.
