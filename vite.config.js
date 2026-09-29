@@ -3,12 +3,49 @@ import react from '@vitejs/plugin-react'
 import { execSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
+import { mergeProgress } from './api/progress.js'
 
 // Build stamp shown in bug reports: Vercel's commit, or the local commit.
 function buildStamp() {
   let sha = process.env.VERCEL_GIT_COMMIT_SHA || ''
   if (!sha) { try { sha = execSync('git rev-parse HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim() } catch {} }
   return `${sha ? sha.slice(0, 7) : 'local'} ${new Date().toISOString().slice(0, 16)}Z`
+}
+
+// Local stand in for api/progress.js during `npm run dev`: progress is saved
+// to .data/progress/<user>.json with the same merge the server uses.
+function devProgress() {
+  const dir = path.resolve('.data/progress')
+  const file = (user) => path.join(dir, `${encodeURIComponent(user)}.json`)
+  const read = (user) => (fs.existsSync(file(user)) ? JSON.parse(fs.readFileSync(file(user), 'utf8')) : null)
+  return {
+    name: 'dev-progress',
+    configureServer(server) {
+      server.middlewares.use('/api/progress', (req, res) => {
+        const send = (code, obj) => { res.statusCode = code; res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(obj)) }
+        if (req.method === 'GET') {
+          const user = new URL(req.originalUrl || req.url, 'http://x').searchParams.get('user')
+          if (!user) return send(400, { error: 'Missing user' })
+          return send(200, read(user) || { flashcards: {}, questions: {}, exams: [], totalPoints: 0, empty: true })
+        }
+        if (req.method === 'POST') {
+          let raw = ''
+          req.on('data', c => { raw += c })
+          req.on('end', () => {
+            let body = {}
+            try { body = JSON.parse(raw || '{}') } catch {}
+            if (!body.user || !body.data) return send(400, { error: 'Missing user or data' })
+            const merged = mergeProgress(read(body.user), body.data)
+            fs.mkdirSync(dir, { recursive: true })
+            fs.writeFileSync(file(body.user), JSON.stringify(merged))
+            send(200, { ok: true, data: merged })
+          })
+          return
+        }
+        send(405, { error: 'Method not allowed' })
+      })
+    },
+  }
 }
 
 // Local stand in for api/report.js during `npm run dev`: reports are saved to
@@ -61,7 +98,7 @@ function devReports() {
 }
 
 export default defineConfig({
-  plugins: [react(), devReports()],
+  plugins: [react(), devProgress(), devReports()],
   define: { __APP_BUILD__: JSON.stringify(buildStamp()) },
   build: { outDir: 'dist' }
 })

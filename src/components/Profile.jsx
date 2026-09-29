@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import { fetchReports, deleteReports } from '../lib/report.js'
+import StudentProgress from './StudentProgress.jsx'
 
-// Bug reports are listed only for the test account.
+// The test account sees the student's progress and the bug reports.
 const ADMIN_KEY = 'debug'
+const STUDENT = { key: 'hannah', name: 'Hannah' }
 
 function Reports() {
   const [data, setData]   = useState(null)
@@ -75,7 +77,7 @@ const AVATAR_COLORS = [
 const getAvatarColor = name => AVATAR_COLORS[name.charCodeAt(0) % AVATAR_COLORS.length]
 const initials = name => name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()
 
-export default function Profile({ user, onLogout }) {
+export default function Profile({ user, cards, questions, onLogout }) {
   const [stats, setStats] = useState({ known:0, examCount:0, examAvg:0, totalPoints:0, streak:0 })
   const [history, setHistory] = useState([])
   const PROG_KEY = `deca_progress_${user.key}`
@@ -154,6 +156,7 @@ export default function Profile({ user, onLogout }) {
           </div>
         )}
 
+        {user.key === ADMIN_KEY && <StudentProgress student={STUDENT} cards={cards} questions={questions} />}
         {user.key === ADMIN_KEY && <Reports />}
 
         {/* About */}

@@ -8,6 +8,7 @@ import Profile from './components/Profile.jsx'
 import ReportBug from './components/ReportBug.jsx'
 import { getProgress, saveProgress, mergeNewest } from './lib/storage.js'
 import { setReportContext } from './lib/report.js'
+import { mergeUsage, startUsageTracking } from './lib/usage.js'
 
 const TABS = [
   { key: 'home',    label: 'Home',    icon: 'home' },
@@ -50,6 +51,7 @@ export default function App() {
           flashcards: mergeNewest(local.flashcards || {}, server.flashcards || {}, 'lastReviewed'),
           questions: mergeNewest(local.questions || {}, server.questions || {}, 'last'),
           exams, totalPoints: exams.reduce((s, e) => s + (e.score || 0), 0),
+          usage: mergeUsage(server.usage, local.usage),
         }
         delete merged.empty
         localStorage.setItem(KEY, JSON.stringify(merged))
@@ -65,6 +67,12 @@ export default function App() {
     })()
     return () => { cancelled = true }
   }, [user?.key])
+
+  // Count active study time once this device has synced with the server.
+  useEffect(() => {
+    if (!user || syncTick === 0) return
+    return startUsageTracking(user.key)
+  }, [user?.key, syncTick > 0])
 
   // Keep the bug report context current. Cards and Exam set the item themselves.
   useEffect(() => { setReportContext({ user: user?.key || null }) }, [user?.key])
@@ -94,7 +102,7 @@ export default function App() {
     cards:   <Flashcards user={user} data={flashcardsData} questions={questionsData} />,
     exam:    <Exam user={user} data={questionsData} cards={flashcardsData} />,
     pi:      <PITracker user={user} />,
-    profile: <Profile user={user} onLogout={() => { localStorage.removeItem('deca_user'); setUser(null) }} />,
+    profile: <Profile user={user} cards={flashcardsData} questions={questionsData} onLogout={() => { localStorage.removeItem('deca_user'); setUser(null) }} />,
   }
 
   return (

@@ -17,7 +17,7 @@ function newest(a = {}, b = {}, ts) {
   return out
 }
 
-function mergeProgress(stored, incoming) {
+export function mergeProgress(stored, incoming) {
   if (!stored) return incoming
   const exams = [...(stored.exams || []), ...(incoming.exams || [])]
   const seen = new Set()
@@ -29,8 +29,21 @@ function mergeProgress(stored, incoming) {
     questions: newest(stored.questions, incoming.questions, 'last'),
     exams: uniq,
     totalPoints: uniq.reduce((s, e) => s + (e.score || 0), 0),
+    usage: mergeUsage(stored.usage, incoming.usage),
     lastActive: new Date().toISOString(),
   }
+}
+
+// Usage seconds per device per day (see src/lib/usage.js): keep the larger count.
+function mergeUsage(a = {}, b = {}) {
+  const out = {}
+  for (const src of [a, b]) {
+    for (const [dev, days] of Object.entries(src || {})) {
+      out[dev] ||= {}
+      for (const [day, sec] of Object.entries(days || {})) out[dev][day] = Math.max(out[dev][day] || 0, sec || 0)
+    }
+  }
+  return out
 }
 
 export default async function handler(req, res) {

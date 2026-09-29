@@ -17,6 +17,14 @@ Stack: React 18 + Vite, Tailwind via CDN, Vercel serverless functions (Node runt
 
 The top dropdown picks the exam year (All years, or a single year). The category list at the bottom picks the category, with "All categories" as its first row. Year and category combine.
 
+## Hannah's progress and usage time (Debug account)
+
+The Debug account's Profile shows Hannah's progress, read from the same server copy her devices sync to: last active time, usage time (today, last 7 days, all time, and a 7 day bar chart), cards and questions studied in the last 7 days, flashcard and exam question status counts, accuracy, and recent practice sessions. Tap refresh to reload.
+
+Usage time is counted from Sept 29, 2026 on: while the app is on screen and the student has tapped, typed or scrolled in the last 2 minutes, every 15 seconds is added to the day's total. It is stored in the progress record as `usage[device][YYYY-MM-DD] = seconds`; merging keeps the larger count per device and day, so two devices never overwrite each other. It is sent to the server every 5 minutes of use and when the app is hidden or closed.
+
+In `npm run dev`, a Vite middleware stands in for `/api/progress` and stores progress in `.data/progress/` with the same merge as the server.
+
 ## Bug reports
 
 A small bug button sits in the top right corner of every screen. It opens a short form; "Send report" saves the report on the server, no email app needed. The report adds the screen, the card or question on screen, the user, the app build, the content size, time, URL, device, screen size and the last 8 JavaScript errors.

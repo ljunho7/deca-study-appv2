@@ -51,6 +51,7 @@ git push origin main   # Vercel builds automatically
 - Review cascade (`src/lib/review.js`): card marked Forgot → all linked questions become Review. Question answered Incorrect or rated Hard → all linked cards become Review. Review clears on the next answer.
 - Home shows Cards and Exam dashboards. The leaderboard was removed; do not bring it back.
 - Bug button (top right of every screen) sends a report to `POST /api/report` (saved in Blob under `reports/`). Reports are listed on the Debug account's Profile screen, with a delete button per report and "Clear all". Optional email copies need `RESEND_API_KEY` in Vercel (see README).
+- Debug's Profile shows Hannah's progress (read only, from `GET /api/progress?user=hannah`) including usage time. Usage is tracked by `src/lib/usage.js` as `usage[device][day] = seconds` inside the progress record; `api/progress.js` and the login sync merge it by max per device and day. Keep that merge if progress code changes.
 - The main scroll area hides its scroll bar (`no-scrollbar`); keep it that way.
 - Autosave: localStorage instantly, server sync shortly after each change and on tab hide/close via `sendBeacon`.
 
