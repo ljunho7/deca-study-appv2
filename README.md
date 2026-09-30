@@ -13,6 +13,24 @@ npm run build        # outputs to dist/
 
 Stack: React 18 + Vite, Tailwind via CDN, Vercel serverless functions (Node runtime) with a PRIVATE Vercel Blob store (`api/_blob.js`).
 
+## App and Desktop modes
+
+The login page (and Home in app mode) has an **App | Desktop** switch, remembered per device (default App). Desktop mode shows a sidebar with Home, Cards, Exam, **Role Play** and Profile; Home, Cards, Exam and Profile are the same screens as the phone app. Desktop code (`src/desktop/`) is lazy loaded, so phone mode never downloads it.
+
+## Role Play (desktop only)
+
+64 ACT role plays: 29 official (from the DECA PDFs) and 35 practice scenarios.
+
+* **Self study:** the whole role play including the judge's key, judge questions, solution, key concepts (with links to flashcards) and the rubric, next to an **AI coach** chat (Gemini). The chat is kept on the device per role play; it can include the student's latest test so they can ask about their scores.
+* **Test:** 10 minutes to prepare (scenario and exhibits without judge material, notes, four-function calculator), then up to 10 minutes to present out loud while the microphone records. The judge (browser speech) greets the student; after "Done presenting" it asks follow-up questions: the role play's official judge questions, or the **AI judge** option, which transcribes the talk so far and has Gemini write 2 or 3 follow-ups. At 10:00 the recording stops. The recording is transcribed by **Groq Whisper** and scored by **Gemini** on the role play's rubric (100 points). No AI help anywhere in Test mode.
+* **Attempts** (transcript, questions, notes, scores, feedback) are saved permanently in the progress record under `roleplays`, merged by attempt id on the server and at login. Audio is never stored. If scoring fails, the transcript is kept and the attempt can be scored later from the library. Debug's Profile shows Hannah's role play tests.
+* **Rubrics:** official role plays use their own Judge's Evaluation Form, read from each source PDF (2017 to 2026: 5 PIs x 14 + 4 skills x 6 + overall 6; 2014 and 2015: 5 PIs x 16 + 2 items x 10; undated sample: 5 PIs x 18 + overall 10). Practice scenarios use rubrics written for them in `DECA Role play/new scenarios/rubrics/` (same 2017 to 2026 layout with scenario specific criteria for each level).
+* **Server:** `api/roleplay.js` (actions transcribe, grade, judge, chat; 60 s limit in `vercel.json`). Needs `GROQ_API_KEY` and `GEMINI_API_KEY` in the Vercel project settings (optional `GEMINI_MODEL`, default `gemini-2.5-flash`, and `GROQ_MODEL`, default `whisper-large-v3-turbo`). Without keys the screens work and show a clear "not set" message. In `npm run dev` a stand in returns labeled mock results when the keys are not in the environment. For testing without a microphone, set `localStorage.deca_fake_mic = '1'`.
+
+### Updating role play content
+
+Edit or add JSON files in `DECA Role play/output/json` or `DECA Role play/new scenarios/json` (and a rubric in `new scenarios/rubrics/` for each new practice scenario), then run `npm run sync-roleplays` (needs `pdftotext`, which comes with Git for Windows) and commit `public/roleplays/` and `data/roleplay_ids.json`. Role play ids are permanent: the sync fails with RETIRED ROLE PLAY IDS if one disappears (accept an intended removal with `npm run sync-roleplays -- --accept-retired`). Never edit or delete `data/roleplay_ids.json`.
+
 ## Practice exam
 
 The top dropdown picks the exam year (All years, or a single year). The category list at the bottom picks the category, with "All categories" as its first row. Year and category combine.

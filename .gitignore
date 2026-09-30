@@ -4,3 +4,6 @@ dist
 .env.local
 .vercel
 .data
+# Not used by the app (role plays come from the json folders via npm run sync-roleplays)
+data/act_roleplays.json
+public/act_roleplays.json

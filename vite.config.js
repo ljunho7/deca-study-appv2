@@ -48,6 +48,54 @@ function devProgress() {
   }
 }
 
+// Local stand in for api/roleplay.js during `npm run dev`. With GROQ_API_KEY /
+// GEMINI_API_KEY in the environment it calls the real services; without them
+// it returns clearly labeled mock results so the Role Play screens can be
+// tested end to end.
+function devRoleplay() {
+  const mock = {
+    transcribe: ({ audio }) => {
+      const secs = Math.max(1, Math.round((audio || '').length * 0.75 / 3000))
+      const text = '(dev mock transcript) Good morning. Thank you for meeting with me. I reviewed the information and prepared my recommendation. First, the key numbers. Second, the journal entries. Finally, my recommendation and the risks to watch.'
+      return { text, segments: [{ start: 0, end: secs, text }], duration: secs }
+    },
+    grade: ({ roleplay }) => {
+      const items = roleplay.rubric.items.map((it, i) => {
+        const score = Math.round(it.max * (0.55 + (i % 3) * 0.1))
+        const level = Object.entries(it.bands).find(([, [lo, hi]]) => score >= lo && score <= hi)?.[0]
+        return { label: it.label, kind: it.kind, max: it.max, score, level, evidence: '"I prepared my recommendation"', feedback: '(dev mock) Explain the key numbers and why they matter to the judge.' }
+      })
+      return { items, total: items.reduce((s, x) => s + x.score, 0), summary: '(dev mock score) Real scoring needs GEMINI_API_KEY.', strengths: ['Clear opening'], improvements: ['State the key numbers'], missed_points: ['(dev mock)'], judge_answers: [], model: 'dev-mock' }
+    },
+    judge: ({ roleplay }) => ({ questions: (roleplay.judge_questions || []).slice(0, 2).map(q => `(AI judge mock) ${q}`) }),
+    chat: ({ messages }) => ({ reply: `(dev mock coach) You asked: "${messages[messages.length - 1]?.text}". Real answers need GEMINI_API_KEY.` }),
+  }
+  return {
+    name: 'dev-roleplay',
+    configureServer(server) {
+      server.middlewares.use('/api/roleplay', (req, res) => {
+        let raw = ''
+        req.on('data', c => { raw += c })
+        req.on('end', async () => {
+          const send = (code, obj) => { res.statusCode = code; res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(obj)) }
+          let body = {}
+          try { body = JSON.parse(raw || '{}') } catch {}
+          const real = body.action === 'transcribe' ? process.env.GROQ_API_KEY : process.env.GEMINI_API_KEY
+          try {
+            if (real) {
+              const api = await server.ssrLoadModule('/api/roleplay.js')
+              const fn = { transcribe: () => api.transcribe(body.audio, body.mime), grade: () => api.grade(body), judge: () => api.judgeQuestions(body), chat: () => api.chat(body) }[body.action]
+              return fn ? send(200, await fn()) : send(400, { error: 'unknown action' })
+            }
+            if (!mock[body.action]) return send(400, { error: 'unknown action' })
+            setTimeout(() => send(200, mock[body.action](body)), 600)
+          } catch (e) { send(500, { error: e.message }) }
+        })
+      })
+    },
+  }
+}
+
 // Local stand in for api/report.js during `npm run dev`: reports are saved to
 // .data/reports/ (git ignored), so the bug button works without Vercel.
 function devReports() {
@@ -98,7 +146,7 @@ function devReports() {
 }
 
 export default defineConfig({
-  plugins: [react(), devProgress(), devReports()],
+  plugins: [react(), devProgress(), devRoleplay(), devReports()],
   define: { __APP_BUILD__: JSON.stringify(buildStamp()) },
   build: { outDir: 'dist' }
 })

@@ -31,8 +31,19 @@ export function mergeProgress(stored, incoming) {
     totalPoints: uniq.reduce((s, e) => s + (e.score || 0), 0),
     usage: mergeUsage(stored.usage, incoming.usage),
     bookmarks: mergeBookmarks(stored.bookmarks, incoming.bookmarks),
+    roleplays: mergeAttempts(stored.roleplays, incoming.roleplays),
     lastActive: new Date().toISOString(),
   }
+}
+
+// Role play attempts by attempt id (see src/lib/attempts.js): every attempt
+// is kept for good; for the same id the most recently updated copy wins.
+function mergeAttempts(a = {}, b = {}) {
+  const out = { ...(a || {}) }
+  for (const [id, e] of Object.entries(b || {})) {
+    if (!out[id] || (e?.updated || 0) >= (out[id]?.updated || 0)) out[id] = e
+  }
+  return out
 }
 
 // Bookmarks per kind (see src/lib/bookmarks.js): newest { on, at } per id wins,

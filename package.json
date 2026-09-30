@@ -4,6 +4,7 @@
   "scripts": {
     "dev": "vite",
     "check-ids": "node scripts/check-ids.mjs",
+    "sync-roleplays": "node scripts/sync-roleplays.mjs",
     "prebuild": "node scripts/check-ids.mjs",
     "build": "vite build",
     "preview": "vite preview"

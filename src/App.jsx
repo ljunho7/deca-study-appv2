@@ -9,6 +9,7 @@ import { getProgress, saveProgress, mergeNewest } from './lib/storage.js'
 import { setReportContext } from './lib/report.js'
 import { mergeUsage, startUsageTracking } from './lib/usage.js'
 import { mergeBookmarks, seedBookmarks } from './lib/bookmarks.js'
+import { mergeAttempts } from './lib/attempts.js'
 import ModeSwitch from './components/ModeSwitch.jsx'
 import { readMode, saveMode, applyModeClass } from './lib/mode.js'
 
@@ -66,6 +67,7 @@ export default function App() {
           exams, totalPoints: exams.reduce((s, e) => s + (e.score || 0), 0),
           usage: mergeUsage(server.usage, local.usage),
           bookmarks: mergeBookmarks(server.bookmarks, local.bookmarks),
+          roleplays: mergeAttempts(server.roleplays, local.roleplays),
         }
         delete merged.empty
         const seeded = seedBookmarks(merged)
@@ -133,7 +135,7 @@ export default function App() {
   if (mode === 'desktop') return (
     <div className="relative">
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-on-surface-variant text-sm">Loading desktop…</div>}>
-        <DesktopShell user={user} tab={tab} onTabChange={setTab} screens={screens}
+        <DesktopShell user={user} cards={flashcardsData} tab={tab} onTabChange={setTab} screens={screens}
           syncState={syncState} syncError={syncError} syncTick={syncTick}
           mode={mode} onModeChange={changeMode} />
       </Suspense>

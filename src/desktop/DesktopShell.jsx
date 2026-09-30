@@ -14,8 +14,15 @@ export const DESKTOP_TABS = [
   { key: 'profile',  label: 'Profile',   icon: 'person' },
 ]
 
-export default function DesktopShell({ user, tab, onTabChange, screens, syncState, syncError, syncTick, mode, onModeChange }) {
-  const content = tab === 'roleplay' ? <RolePlay user={user} /> : screens[tab]
+export default function DesktopShell({ user, cards, tab, onTabChange, screens, syncState, syncError, syncTick, mode, onModeChange }) {
+  const content = tab === 'roleplay' ? <RolePlay user={user} cards={cards} /> : screens[tab]
+  // Leaving the Role Play tab in the middle of a test would lose it.
+  const go = (key) => {
+    if (key === tab) return
+    if (window.__rpBusy && !window.confirm('You are in the middle of a role play test. Leave it? The test will be lost.')) return
+    window.__rpBusy = false
+    onTabChange(key)
+  }
   // Phone screens are built for a narrow column; give them a comfortable width.
   const width = tab === 'roleplay' ? 'max-w-6xl' : 'max-w-2xl'
 
@@ -36,7 +43,7 @@ export default function DesktopShell({ user, tab, onTabChange, screens, syncStat
           {DESKTOP_TABS.map(({ key, label, icon }) => {
             const active = tab === key
             return (
-              <button key={key} onClick={() => onTabChange(key)}
+              <button key={key} onClick={() => go(key)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all
                   ${active ? 'bg-primary/10 text-primary' : 'text-on-surface-variant hover:bg-surface-container'}`}>
                 <span className={`material-symbols-outlined text-[22px] ${active ? 'sym-filled' : ''}`}>{icon}</span>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { getProgress } from '../lib/storage.js'
 import { cardStatus, questionStatus } from '../lib/review.js'
 import { usageByDay, dayKey } from '../lib/usage.js'
+import { attemptsFor } from '../lib/attempts.js'
 
 // Read only view of another student's progress, shown on the Debug account's
 // Profile. Reads the same server copy the student's devices sync to.
@@ -138,6 +139,26 @@ export default function StudentProgress({ student, cards, questions }) {
               </div>
             ))}
           </Section>
+
+          {(() => {
+            // Role play tests (desktop), kept permanently in the progress record.
+            const rps = attemptsFor(prog.roleplays)
+            const scored = rps.filter(a => a.grade)
+            const avgRp = scored.length ? Math.round(scored.slice(0, 5).reduce((s, a) => s + a.grade.total, 0) / Math.min(scored.length, 5)) : null
+            return (
+              <Section title={`Role play tests · ${rps.length}${avgRp != null ? ` · last 5 avg ${avgRp}/100` : ''}`}>
+                {rps.length === 0 && <p className="text-xs text-on-surface-variant">No role play tests yet (desktop only).</p>}
+                {rps.slice(0, 5).map(a => (
+                  <div key={a.id} className="flex items-center gap-3 py-1">
+                    <p className="flex-1 text-xs text-on-surface min-w-0 truncate" title={a.title}>
+                      {a.title}<span className="text-on-surface-variant"> · {new Date(a.at).toLocaleDateString()}</span>
+                    </p>
+                    <span className={`text-sm font-black ${!a.grade ? 'text-outline' : a.grade.total >= 75 ? 'text-secondary' : a.grade.total >= 60 ? 'text-tertiary-container' : 'text-error'}`}>{a.grade ? a.grade.total : 'n/a'}</span>
+                  </div>
+                ))}
+              </Section>
+            )
+          })()}
         </>
       )}
     </div>
