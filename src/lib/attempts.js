@@ -35,6 +35,9 @@ export async function saveAttempt(userKey, attempt) {
 export const attemptsFor = (attempts, rpId) =>
   Object.values(attempts || {}).filter(a => !rpId || a.rp_id === rpId).sort((x, y) => String(y.at).localeCompare(String(x.at)))
 
+// How the judge's questions were chosen for an attempt.
+export const judgeLabel = (a) => a?.judgeMode === 'official+ai' ? 'official + follow-up questions' : a?.judgeMode === 'ai' ? 'AI judge' : 'official questions'
+
 export const bestScore = (attempts, rpId) => {
   const s = attemptsFor(attempts, rpId).map(a => a.grade?.total).filter(n => typeof n === 'number')
   return s.length ? Math.max(...s) : null

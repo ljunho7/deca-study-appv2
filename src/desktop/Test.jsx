@@ -17,7 +17,6 @@ const CLOSING = 'Thank you for your work. That concludes our meeting.'
 
 export default function Test({ user, rp, cardsById, onExit, onStudy }) {
   const [phase, setPhase] = useState('setup')        // setup | prep | present | scoring | results
-  const [judgeMode, setJudgeMode] = useState('scenario')
   const [micError, setMicError] = useState('')
   const [now, setNow] = useState(Date.now())
   const [prepEnds, setPrepEnds] = useState(0)
@@ -26,13 +25,13 @@ export default function Test({ user, rp, cardsById, onExit, onStudy }) {
   const [stage, setStage] = useState('presenting')   // presenting | thinking | asking | closing
   const [questions, setQuestions] = useState([])     // [{ text, at }]
   const [qIndex, setQIndex] = useState(0)
-  const [judgeNote, setJudgeNote] = useState('')
   const [step, setStep] = useState('')               // transcribing | scoring
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(null)
 
   const streamRef = useRef(null), recRef = useRef(null), blobRef = useRef(null), finishing = useRef(false)
-  const qRef = useRef([])     // questions queued for this presentation
+  const qRef = useRef([])     // questions queued: [{ text, source: 'official' | 'ai' }]
+  const aiRef = useRef(null)  // pending AI follow-up questions (a promise)
   const endedRef = useRef(0)
   const askedRef = useRef([]) // questions asked, with times (read when saving)
   const notesRef = useRef(''), talkStartRef = useRef(0)
@@ -78,35 +77,48 @@ export default function Test({ user, rp, cardsById, onExit, onStudy }) {
 
   const elapsed = () => Math.round((Date.now() - talkStartRef.current) / 1000)
 
+  // The judge always asks the official questions first. At the same moment the
+  // presentation so far is sent off for AI follow-up questions, which are
+  // asked after the official ones (if they arrive; otherwise the meeting ends).
   async function donePresenting() {
     if (stage !== 'presenting') return
-    let qs = rp.judge_questions || []
-    if (judgeMode === 'ai') {
-      setStage('thinking')
-      try {
-        const audio = await blobToBase64(recRef.current.snapshot())
-        const transcript = await rpCall('transcribe', { audio, mime: recRef.current.mime })
-        const out = await rpCall('judge', { roleplay: rp, transcript })
-        qs = out.questions
-        setJudgeNote('')
-      } catch (e) {
-        setJudgeNote(`The AI judge was not available (${e.message}), so the scenario's judge questions are used.`)
-      }
-      if (finishing.current) return
-    }
-    qRef.current = qs
-    if (!qs.length) return closeMeeting()
+    const snapshot = recRef.current.snapshot()
+    aiRef.current = (async () => {
+      const audio = await blobToBase64(snapshot)
+      const transcript = await rpCall('transcribe', { audio, mime: recRef.current.mime })
+      const out = await rpCall('judge', { roleplay: rp, transcript })
+      return out.questions || []
+    })().catch(e => { console.warn('AI judge questions unavailable:', e.message); return [] })
+    qRef.current = (rp.judge_questions || []).map(text => ({ text, source: 'official' }))
+    if (!qRef.current.length) return moreOrClose(0)
     ask(0)
   }
 
   function ask(i) {
-    const text = qRef.current[i]
-    askedRef.current = [...askedRef.current, { text, at: elapsed() }]
+    const q = qRef.current[i]
+    askedRef.current = [...askedRef.current, { text: q.text, at: elapsed(), source: q.source }]
     setQuestions(askedRef.current)
     setQIndex(i); setStage('asking')
-    speak(text)
+    speak(q.text)
   }
-  const nextQuestion = () => (qIndex + 1 < qRef.current.length ? ask(qIndex + 1) : closeMeeting())
+
+  // After the last queued question: add the AI follow-ups once (waiting for
+  // them if needed), then close the meeting.
+  async function moreOrClose(next) {
+    if (aiRef.current) {
+      const pending = aiRef.current
+      aiRef.current = null
+      setStage('thinking')
+      const ai = await pending
+      if (finishing.current) return
+      if (ai.length) {
+        qRef.current = [...qRef.current, ...ai.map(text => ({ text, source: 'ai' }))]
+        return ask(next)
+      }
+    }
+    closeMeeting()
+  }
+  const nextQuestion = () => (qIndex + 1 < qRef.current.length ? ask(qIndex + 1) : moreOrClose(qIndex + 1))
 
   async function closeMeeting() {
     setStage('closing')
@@ -136,7 +148,7 @@ export default function Test({ user, rp, cardsById, onExit, onStudy }) {
         const transcript = await rpCall('transcribe', { audio: await blobToBase64(blobRef.current), mime: recRef.current?.mime || 'audio/webm' })
         a = {
           id: attemptId.current, rp_id: rp.rp_id, title: rp.title, at: new Date(talkStartRef.current || Date.now()).toISOString(),
-          judgeMode, questions: askedRef.current, notes: notesRef.current.slice(0, 5000),
+          judgeMode: 'official+ai', questions: askedRef.current, notes: notesRef.current.slice(0, 5000),
           duration: Math.min(TALK, Math.round(((endedRef.current || Date.now()) - talkStartRef.current) / 1000)),
           transcript, grade: null, error: null,
         }
@@ -178,21 +190,9 @@ export default function Test({ user, rp, cardsById, onExit, onStudy }) {
       <h1 className="text-3xl font-black text-on-surface leading-tight mt-1">{rp.title}</h1>
       <div className="mt-6 bg-surface-container-lowest rounded-2xl p-6 shadow-[0px_2px_8px_rgba(26,27,33,0.04)] space-y-3 text-sm">
         <p><b>1. Prepare, 10 minutes.</b> Read the scenario and exhibits, take notes, use the four-function calculator.</p>
-        <p><b>2. Present, up to 10 minutes.</b> Your microphone records. The judge greets you; present out loud, then click <i>Done presenting</i> and answer the judge's questions out loud. Recording stops at 10:00.</p>
+        <p><b>2. Present, up to 10 minutes.</b> Your microphone records. The judge greets you; present out loud, then click <i>Done presenting</i> and answer the judge's questions out loud: first the official questions, then follow-up questions the judge writes from your presentation. Recording stops at 10:00.</p>
         <p><b>3. Score.</b> Your talk is transcribed and scored on this role play's rubric (100 points). The attempt is saved permanently.</p>
         <p className="text-on-surface-variant">No AI coach during the test. Use a quiet room and Chrome or Edge.</p>
-      </div>
-      <p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant mt-6 mb-2">Judge's follow-up questions</p>
-      <div className="grid grid-cols-2 gap-3">
-        {[
-          { k: 'scenario', t: 'Official questions', d: "The judge asks this role play's own judge questions." },
-          { k: 'ai', t: 'AI judge', d: 'The judge listens to your presentation and asks its own follow-up questions (takes a few seconds).' },
-        ].map(o => (
-          <button key={o.k} onClick={() => setJudgeMode(o.k)} aria-pressed={judgeMode === o.k}
-            className={`text-left rounded-2xl p-4 border-2 transition-all ${judgeMode === o.k ? 'border-primary bg-primary/5' : 'border-transparent bg-surface-container-lowest'}`}>
-            <p className="font-bold text-on-surface">{o.t}</p><p className="text-xs text-on-surface-variant mt-1">{o.d}</p>
-          </button>
-        ))}
       </div>
       {micError && <p className="mt-4 text-sm text-on-error-container bg-error-container/60 rounded-xl px-4 py-3">{micError}</p>}
       <button onClick={startPrep} className="mt-6 bg-primary text-on-primary font-bold px-6 py-4 rounded-xl flex items-center gap-2 shadow-lg shadow-primary/20">
@@ -230,19 +230,22 @@ export default function Test({ user, rp, cardsById, onExit, onStudy }) {
             <p className="flex items-center gap-2 text-sm font-bold text-error"><span className="w-2.5 h-2.5 rounded-full bg-error animate-pulse" />Recording</p>
             <p className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant mt-4">Judge ({rp.judge_role})</p>
             {stage === 'presenting' && <p className="text-lg mt-1">"{GREETING}"</p>}
-            {stage === 'thinking' && <p className="text-lg mt-1 flex items-center gap-2 text-on-surface-variant"><span className="material-symbols-outlined animate-spin">progress_activity</span>The judge is thinking of questions…</p>}
+            {stage === 'thinking' && <p className="text-lg mt-1 flex items-center gap-2 text-on-surface-variant"><span className="material-symbols-outlined animate-spin">progress_activity</span>The judge is thinking of a follow-up question…</p>}
             {stage === 'asking' && (
               <>
-                <p className="text-xs text-on-surface-variant mt-1">Question {qIndex + 1} of {qRef.current.length}</p>
-                <p className="text-xl font-semibold mt-1">"{qRef.current[qIndex]}"</p>
-                <button onClick={() => speak(qRef.current[qIndex])} className="mt-2 text-xs font-bold text-primary flex items-center gap-1"><span className="material-symbols-outlined text-[16px]">replay</span>Repeat the question</button>
+                <p className="text-xs text-on-surface-variant mt-1">
+                  {qRef.current[qIndex]?.source === 'ai'
+                    ? `Follow-up question ${qIndex + 1 - qRef.current.filter(q => q.source === 'official').length}`
+                    : `Question ${qIndex + 1} of ${qRef.current.filter(q => q.source === 'official').length}`}
+                </p>
+                <p className="text-xl font-semibold mt-1">"{qRef.current[qIndex]?.text}"</p>
+                <button onClick={() => speak(qRef.current[qIndex]?.text)} className="mt-2 text-xs font-bold text-primary flex items-center gap-1"><span className="material-symbols-outlined text-[16px]">replay</span>Repeat the question</button>
               </>
             )}
             {stage === 'closing' && <p className="text-lg mt-1">"{CLOSING}"</p>}
-            {judgeNote && <p className="text-xs text-on-surface-variant mt-3">{judgeNote}</p>}
             <div className="mt-6">
               {stage === 'presenting' && <button onClick={donePresenting} className="bg-primary text-on-primary font-bold px-5 py-3 rounded-xl">Done presenting: ask me questions</button>}
-              {stage === 'asking' && <button onClick={nextQuestion} className="bg-primary text-on-primary font-bold px-5 py-3 rounded-xl">{qIndex + 1 < qRef.current.length ? "I've answered: next question" : "I've answered: finish"}</button>}
+              {stage === 'asking' && <button onClick={nextQuestion} className="bg-primary text-on-primary font-bold px-5 py-3 rounded-xl">I've answered: next</button>}
             </div>
           </div>
           <details className="bg-surface-container-lowest rounded-2xl p-5 shadow-[0px_2px_8px_rgba(26,27,33,0.04)]">

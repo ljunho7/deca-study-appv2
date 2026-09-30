@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import Scenario from './Scenario.jsx'
 import { rpCall, fmtClock } from './services.js'
-import { saveAttempt } from '../lib/attempts.js'
+import { saveAttempt, judgeLabel } from '../lib/attempts.js'
 import { setReportContext } from '../lib/report.js'
 
 // Score report for one test attempt. No AI chat here (Test mode); "Study this
@@ -50,7 +50,7 @@ export default function Results({ user, rp, attempt: initial, cardsById, onBack,
           <p className="text-xs font-bold uppercase tracking-wider text-primary">Test result · {new Date(attempt.at).toLocaleString()}</p>
           <h1 className="text-xl font-black text-on-surface leading-snug mt-0.5">{rp.title}</h1>
           <p className="text-sm text-on-surface-variant mt-1">
-            Presented {fmtClock(attempt.duration || 0)} · {attempt.judgeMode === 'ai' ? 'AI judge' : 'official judge questions'} · {attempt.questions?.length || 0} question{attempt.questions?.length === 1 ? '' : 's'} asked
+            Presented {fmtClock(attempt.duration || 0)} · {judgeLabel(attempt)} · {attempt.questions?.length || 0} question{attempt.questions?.length === 1 ? '' : 's'} asked
           </p>
           {g?.summary && <p className="text-[15px] mt-3">{g.summary}</p>}
         </div>

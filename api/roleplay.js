@@ -93,8 +93,8 @@ ${judgeView(rp)}
 RUBRIC (${items.length} items, total 100):
 ${rubricText}
 
-JUDGE QUESTIONS ASKED DURING THE PRESENTATION (${judgeMode === 'ai' ? 'written live by the AI judge' : 'from the scenario'}):
-${questions.length ? questions.map((q, i) => `${i + 1}. ${q.text}${q.at != null ? ` (asked at ${Math.floor(q.at / 60)}:${String(q.at % 60).padStart(2, '0')})` : ''}`).join('\n') : '(none were asked)'}
+JUDGE QUESTIONS ASKED DURING THE PRESENTATION (${judgeMode === 'official+ai' ? 'the official questions first, then follow-up questions written live by the AI judge' : judgeMode === 'ai' ? 'written live by the AI judge' : 'from the scenario'}):
+${questions.length ? questions.map((q, i) => `${i + 1}. ${q.source === 'ai' ? '[AI follow-up] ' : q.source === 'official' ? '[official] ' : ''}${q.text}${q.at != null ? ` (asked at ${Math.floor(q.at / 60)}:${String(q.at % 60).padStart(2, '0')})` : ''}`).join('\n') : '(none were asked)'}
 
 TRANSCRIPT (10 minute limit, times are minutes:seconds from the start of the presentation):
 ${clip(lines, 60000)}`
@@ -134,10 +134,10 @@ ${clip(lines, 60000)}`
 export async function judgeQuestions({ roleplay: rp, transcript }) {
   const system = `You are the judge in a DECA Accounting Applications Series role play, playing this character: ${rp.judge_role}. The participant has just finished presenting. Ask follow-up questions like a real DECA judge: short, natural, spoken questions (one sentence each) that probe points the participant missed, got wrong or explained vaguely, or that test deeper understanding of the performance indicators. Stay in character and in the scenario. Do not give hints or answers.`
   const user = `Role play: ${participantView(rp)}
-Official judge questions for reference: ${JSON.stringify(rp.judge_questions)}
+Official judge questions (they are asked first, so do NOT repeat or rephrase them): ${JSON.stringify(rp.judge_questions)}
 Model solution (to spot gaps): ${JSON.stringify(rp.solution?.overview || '')}
 What the participant said: ${clip(transcript?.text || '(nothing was recorded)', 20000)}
-Write 2 or 3 follow-up questions.`
+Write 2 or 3 follow-up questions that are different from the official ones.`
   const out = await gemini({ system, contents: [{ role: 'user', parts: [{ text: user }] }], temperature: 0.6,
     schema: { type: 'OBJECT', properties: { questions: { type: 'ARRAY', items: { type: 'STRING' } } }, required: ['questions'] } })
   const questions = (out.questions || []).map(q => clip(q, 300)).filter(Boolean).slice(0, 3)

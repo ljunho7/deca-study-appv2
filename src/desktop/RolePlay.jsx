@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import Study from './Study.jsx'
 import Test from './Test.jsx'
 import Results from './Results.jsx'
-import { readAttempts, attemptsFor, bestScore } from '../lib/attempts.js'
+import { readAttempts, attemptsFor, bestScore, judgeLabel } from '../lib/attempts.js'
 import { setReportContext } from '../lib/report.js'
 
 // Role Play tab (desktop only): the library, then Self study (everything
@@ -131,7 +131,7 @@ export default function RolePlay({ user, cards }) {
                 <div className="mt-3 ml-[72px] space-y-1">
                   {mine.map(a => (
                     <button key={a.id} onClick={() => openRp(r.rp_id, 'results', { attempt: a })} className="w-full flex items-center justify-between text-sm px-3 py-2 rounded-xl bg-surface-container-low hover:bg-surface-container">
-                      <span>{new Date(a.at).toLocaleString()} · {a.judgeMode === 'ai' ? 'AI judge' : 'official questions'}</span>
+                      <span>{new Date(a.at).toLocaleString()} · {judgeLabel(a)}</span>
                       <span className="font-bold">{a.grade ? `${a.grade.total}/100` : 'not scored yet'}</span>
                     </button>
                   ))}
