@@ -137,6 +137,30 @@ for (const rp of all) {
   })
 }
 
+// Solution tables (DECA Role play/solution_tables/<rp_id>.json): debit/credit
+// and accounting-equation tables shown inside each solution step, with the
+// bullets, entries and calculations they replace hidden (nothing shown twice).
+const near = (a, b) => Math.abs(a - b) < 0.005
+for (const rp of all) {
+  const file = path.join(ROOT, 'solution_tables', `${rp.rp_id}.json`)
+  if (!fs.existsSync(file)) continue
+  const t = JSON.parse(fs.readFileSync(file, 'utf8'))
+  const tasks = rp.solution?.by_task || []
+  for (const tk of t.tasks || []) {
+    if (!tasks[tk.task_index]) { errors.push(`${rp.rp_id}: solution table for missing task ${tk.task_index}`); continue }
+    for (const tb of tk.tables || []) {
+      if (tb.type === 'journal') {
+        const d = tb.lines.reduce((s, l) => s + (l.debit || 0), 0), c = tb.lines.reduce((s, l) => s + (l.credit || 0), 0)
+        if (!near(d, c)) errors.push(`${rp.rp_id}: journal table "${tb.title}" does not balance (${d} vs ${c})`)
+      } else if (tb.type === 'equation') {
+        for (const r of tb.rows || []) if (!near(r.assets, r.liabilities + r.equity)) errors.push(`${rp.rp_id}: equation row "${r.label}" does not balance`)
+      } else errors.push(`${rp.rp_id}: unknown table type ${tb.type}`)
+    }
+  }
+  if ((rp.solution?.journal_entries || []).length && !t.covers_journal_entries) warnings.push(`${rp.rp_id}: solution tables do not cover the existing journal entries; they stay in their own block`)
+  rp.solution = { ...rp.solution, tables: { tasks: t.tasks || [], covers_journal_entries: !!t.covers_journal_entries, hide_calculations: t.hide_calculations || [] } }
+}
+
 for (const rp of all) {
   if (!rp.rp_id || !/^[\w-]+$/.test(rp.rp_id)) errors.push(`bad rp_id ${JSON.stringify(rp.rp_id)}`)
   const total = rp.rubric.items.reduce((s, i) => s + i.max, 0)

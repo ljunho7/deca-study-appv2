@@ -46,6 +46,65 @@ const Paragraphs = ({ text }) => String(text || '').split(/\n{2,}/).map((p, i) =
   <p key={i} className="text-[15px] leading-relaxed text-on-surface mb-3 last:mb-0 whitespace-pre-line">{p}</p>
 ))
 
+const money = (n) => Number(n).toLocaleString('en-US', { minimumFractionDigits: Number(n) % 1 ? 2 : 0, maximumFractionDigits: 2 })
+const signed = (n) => !n ? '0' : `${n > 0 ? '+' : '−'}$${money(Math.abs(n))}`
+
+// Journal entry: Account | Debit | Credit, credits indented, with totals.
+export function JournalTable({ title, lines }) {
+  const d = lines.reduce((s, l) => s + (l.debit || 0), 0), c = lines.reduce((s, l) => s + (l.credit || 0), 0)
+  return (
+    <div className="mt-2 mb-3 overflow-x-auto rounded-xl border border-outline-variant/40">
+      {title && <p className="text-xs font-semibold px-3 py-1.5 bg-surface-container-low">{title}</p>}
+      <table className="w-full text-sm">
+        <thead><tr className="text-[11px] uppercase tracking-wider text-on-surface-variant border-t border-outline-variant/30">
+          <th className="text-left font-semibold px-3 py-1">Account</th><th className="text-right font-semibold px-3 py-1 w-28">Debit</th><th className="text-right font-semibold px-3 py-1 w-28">Credit</th>
+        </tr></thead>
+        <tbody>
+          {lines.map((l, j) => (
+            <tr key={j} className="border-t border-outline-variant/30">
+              <td className={`px-3 py-1 ${l.credit != null && l.debit == null ? 'pl-10' : ''}`}>{l.account}</td>
+              <td className="px-3 py-1 text-right tabular-nums">{l.debit != null ? `$${money(l.debit)}` : ''}</td>
+              <td className="px-3 py-1 text-right tabular-nums">{l.credit != null ? `$${money(l.credit)}` : ''}</td>
+            </tr>
+          ))}
+          {lines.length > 2 && (
+            <tr className="border-t-2 border-outline-variant/60 font-semibold">
+              <td className="px-3 py-1">Total</td><td className="px-3 py-1 text-right tabular-nums">${money(d)}</td><td className="px-3 py-1 text-right tabular-nums">${money(c)}</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// Accounting equation: each row's change to Assets = Liabilities + Equity.
+export function EquationTable({ tb }) {
+  const total = tb.total || (tb.rows.length > 1 ? tb.rows.reduce((t, r) => ({ assets: t.assets + r.assets, liabilities: t.liabilities + r.liabilities, equity: t.equity + r.equity }), { assets: 0, liabilities: 0, equity: 0 }) : null)
+  return (
+    <div className="mt-2 mb-3 overflow-x-auto rounded-xl border border-outline-variant/40">
+      {tb.title && <p className="text-xs font-semibold px-3 py-1.5 bg-surface-container-low">{tb.title}</p>}
+      <table className="w-full text-sm">
+        <thead><tr className="text-[11px] uppercase tracking-wider text-on-surface-variant border-t border-outline-variant/30">
+          <th className="text-left font-semibold px-3 py-1">Transaction</th><th className="text-right font-semibold px-3 py-1 w-28">Assets</th><th className="text-center px-1 w-4">=</th><th className="text-right font-semibold px-3 py-1 w-28">Liabilities</th><th className="text-center px-1 w-4">+</th><th className="text-right font-semibold px-3 py-1 w-28">Equity</th>
+        </tr></thead>
+        <tbody>
+          {tb.rows.map((r, j) => (
+            <tr key={j} className="border-t border-outline-variant/30">
+              <td className="px-3 py-1">{r.label}</td><td className="px-3 py-1 text-right tabular-nums">{signed(r.assets)}</td><td /><td className="px-3 py-1 text-right tabular-nums">{signed(r.liabilities)}</td><td /><td className="px-3 py-1 text-right tabular-nums">{signed(r.equity)}</td>
+            </tr>
+          ))}
+          {total && (
+            <tr className="border-t-2 border-outline-variant/60 font-semibold">
+              <td className="px-3 py-1">Total change</td><td className="px-3 py-1 text-right tabular-nums">{signed(total.assets)}</td><td className="text-center">=</td><td className="px-3 py-1 text-right tabular-nums">{signed(total.liabilities)}</td><td className="text-center">+</td><td className="px-3 py-1 text-right tabular-nums">{signed(total.equity)}</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 export function RubricTable({ rubric }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-outline-variant/40">
@@ -123,42 +182,39 @@ export default function Scenario({ rp, showJudge = false, cardsById, onOpenCard,
         <>
           <Card title="Solution" icon="lightbulb" tone="border border-secondary/30">
             {sol.overview && <p className="text-[15px] leading-relaxed mb-4">{sol.overview}</p>}
-            {(sol.by_task || []).map((t, i) => (
-              <div key={i} className="mb-3">
-                <p className="text-sm font-bold">{t.task}</p>
-                <ul className="list-disc pl-5 text-sm space-y-0.5 mt-1">{(t.answer || []).map((a, j) => <li key={j}>{a}</li>)}</ul>
-              </div>
-            ))}
-            {(sol.journal_entries || []).length > 0 && (
+            {(sol.by_task || []).map((t, i) => {
+              const extra = sol.tables?.tasks?.find(x => x.task_index === i)
+              const hidden = new Set(extra?.hide_bullets || [])
+              const bullets = (t.answer || []).filter((_, j) => !hidden.has(j))
+              return (
+                <div key={i} className="mb-4">
+                  <p className="text-sm font-bold">{t.task}</p>
+                  {bullets.length > 0 && <ul className="list-disc pl-5 text-sm space-y-0.5 mt-1">{bullets.map((a, j) => <li key={j}>{a}</li>)}</ul>}
+                  {(extra?.tables || []).map((tb, j) => tb.type === 'equation' ? <EquationTable key={j} tb={tb} /> : <JournalTable key={j} title={tb.title} lines={tb.lines} />)}
+                </div>
+              )
+            })}
+            {!sol.tables?.covers_journal_entries && (sol.journal_entries || []).length > 0 && (
               <div className="mt-4">
                 <p className="text-sm font-bold mb-2">Journal entries</p>
-                {sol.journal_entries.map((je, i) => (
-                  <div key={i} className="mb-3 overflow-x-auto rounded-xl border border-outline-variant/40">
-                    <p className="text-xs font-semibold px-3 py-1.5 bg-surface-container-low">{je.description}</p>
-                    <table className="w-full text-sm"><tbody>
-                      {(je.lines || []).map((l, j) => (
-                        <tr key={j} className="border-t border-outline-variant/30">
-                          <td className={`px-3 py-1 ${l.credit != null ? 'pl-10' : ''}`}>{l.account}</td>
-                          <td className="px-3 py-1 text-right tabular-nums w-28">{l.debit != null ? Number(l.debit).toLocaleString() : ''}</td>
-                          <td className="px-3 py-1 text-right tabular-nums w-28">{l.credit != null ? Number(l.credit).toLocaleString() : ''}</td>
-                        </tr>
-                      ))}
-                    </tbody></table>
-                  </div>
-                ))}
+                {sol.journal_entries.map((je, i) => <JournalTable key={i} title={je.description} lines={je.lines || []} />)}
               </div>
             )}
-            {(sol.calculations || []).length > 0 && (
-              <div className="mt-4">
-                <p className="text-sm font-bold mb-2">Calculations</p>
-                {sol.calculations.map((c, i) => (
-                  <div key={i} className="mb-2 text-sm">
-                    <p className="font-semibold">{c.label}: <span className="text-secondary">{c.result}</span></p>
-                    <ul className="list-disc pl-5 text-on-surface-variant">{(c.steps || []).map((s, j) => <li key={j}>{s}</li>)}</ul>
-                  </div>
-                ))}
-              </div>
-            )}
+            {(() => {
+              const hide = new Set(sol.tables?.hide_calculations || [])
+              const calcs = (sol.calculations || []).filter((_, i) => !hide.has(i))
+              return calcs.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-sm font-bold mb-2">Calculations</p>
+                  {calcs.map((c, i) => (
+                    <div key={i} className="mb-2 text-sm">
+                      <p className="font-semibold">{c.label}: <span className="text-secondary">{c.result}</span></p>
+                      <ul className="list-disc pl-5 text-on-surface-variant">{(c.steps || []).map((st, j) => <li key={j}>{st}</li>)}</ul>
+                    </div>
+                  ))}
+                </div>
+              )
+            })()}
           </Card>
 
           <Card title="Judge's questions (asked after the presentation)" icon="record_voice_over" tone="border border-amber-200">

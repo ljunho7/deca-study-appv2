@@ -74,14 +74,28 @@ export default function DesktopShell({ user, cards, questions, tab, onTabChange,
             Progress is not being saved to the server, so it only stays on this device. ({syncError})
           </div>
         )}
-        <div className="flex-1 flex min-h-0">
+        {coachTab && coachOpen ? (
+          // Same frame as Role Play Self study: a centered max-w-6xl area with
+          // px-8, the screen on the left and the 380 px coach on the right,
+          // starting at the same height as the Self study coach.
+          <div className="flex-1 min-h-0" key={syncTick}>
+            <div className="mx-auto w-full max-w-6xl h-full px-8 flex gap-5">
+              <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden no-scrollbar">
+                <div className="mx-auto w-full max-w-2xl min-h-full">{content}</div>
+              </div>
+              <div className="w-[380px] flex-shrink-0 pt-[84px] pb-6 min-h-0 flex flex-col">
+                <StudyCoach key={tab} user={user} kind={tab} cards={cards} questions={questions} onCollapse={() => toggleCoach(false)} />
+              </div>
+            </div>
+          </div>
+        ) : (
           <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar min-w-0" key={syncTick}>
             <div className={`mx-auto w-full ${width} min-h-full`}>{content}</div>
           </div>
-          {coachTab && (coachOpen
-            ? <div className="w-[380px] flex-shrink-0 p-4 pt-14 min-h-0"><StudyCoach key={tab} user={user} kind={tab} cards={cards} questions={questions} onCollapse={() => toggleCoach(false)} /></div>
-            : <button onClick={() => toggleCoach(true)} className="absolute right-4 bottom-6 z-30 bg-primary text-on-primary font-bold text-sm px-4 py-2.5 rounded-full shadow-lg flex items-center gap-1.5"><span className="material-symbols-outlined text-[20px]">smart_toy</span>AI coach</button>)}
-        </div>
+        )}
+        {coachTab && !coachOpen && (
+          <button onClick={() => toggleCoach(true)} className="absolute right-4 bottom-6 z-30 bg-primary text-on-primary font-bold text-sm px-4 py-2.5 rounded-full shadow-lg flex items-center gap-1.5"><span className="material-symbols-outlined text-[20px]">smart_toy</span>AI coach</button>
+        )}
       </main>
     </div>
   )
