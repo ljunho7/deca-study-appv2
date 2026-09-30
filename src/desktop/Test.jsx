@@ -18,6 +18,11 @@ const CLOSING = 'Thank you for your work. That concludes our meeting.'
 export default function Test({ user, rp, cardsById, onExit, onStudy }) {
   const [phase, setPhase] = useState('setup')        // setup | prep | present | scoring | results
   const [micError, setMicError] = useState('')
+  // The judge is silent by default (text on screen only); reading aloud is optional and remembered.
+  const [voice, setVoice] = useState(() => { try { return localStorage.getItem('deca_rp_voice') === '1' } catch { return false } })
+  const voiceRef = useRef(voice)
+  useEffect(() => { voiceRef.current = voice; try { localStorage.setItem('deca_rp_voice', voice ? '1' : '0') } catch {} }, [voice])
+  const say = (text) => voiceRef.current ? speak(text) : Promise.resolve()
   const [now, setNow] = useState(Date.now())
   const [prepEnds, setPrepEnds] = useState(0)
   const [talkStart, setTalkStart] = useState(0)
@@ -72,7 +77,7 @@ export default function Test({ user, rp, cardsById, onExit, onStudy }) {
     catch (e) { setMicError(`Recording could not start: ${e.message}`); return }
     const t = Date.now()
     setTalkStart(t); talkStartRef.current = t; setNow(t); setStage('presenting'); setPhase('present')
-    speak(GREETING)
+    say(GREETING)
   }
 
   const elapsed = () => Math.round((Date.now() - talkStartRef.current) / 1000)
@@ -99,7 +104,7 @@ export default function Test({ user, rp, cardsById, onExit, onStudy }) {
     askedRef.current = [...askedRef.current, { text: q.text, at: elapsed(), source: q.source }]
     setQuestions(askedRef.current)
     setQIndex(i); setStage('asking')
-    speak(q.text)
+    say(q.text)
   }
 
   // After the last queued question: add the AI follow-ups once (waiting for
@@ -122,7 +127,7 @@ export default function Test({ user, rp, cardsById, onExit, onStudy }) {
 
   async function closeMeeting() {
     setStage('closing')
-    await speak(CLOSING)
+    await (voiceRef.current ? speak(CLOSING) : new Promise(r => setTimeout(r, 1500)))
     finishPresentation()
   }
 
@@ -190,10 +195,14 @@ export default function Test({ user, rp, cardsById, onExit, onStudy }) {
       <h1 className="text-3xl font-black text-on-surface leading-tight mt-1">{rp.title}</h1>
       <div className="mt-6 bg-surface-container-lowest rounded-2xl p-6 shadow-[0px_2px_8px_rgba(26,27,33,0.04)] space-y-3 text-sm">
         <p><b>1. Prepare, 10 minutes.</b> Read the scenario and exhibits, take notes, use the four-function calculator.</p>
-        <p><b>2. Present, up to 10 minutes.</b> Your microphone records. The judge greets you; present out loud, then click <i>Done presenting</i> and answer the judge's questions out loud: first the official questions, then follow-up questions the judge writes from your presentation. Recording stops at 10:00.</p>
+        <p><b>2. Present, up to 10 minutes.</b> Your microphone records. The judge's greeting and questions appear on screen; present out loud, then click <i>Done presenting</i> and answer the judge's questions out loud: first the official questions, then follow-up questions the judge writes from your presentation. Recording stops at 10:00.</p>
         <p><b>3. Score.</b> Your talk is transcribed and scored on this role play's rubric (100 points). The attempt is saved permanently.</p>
         <p className="text-on-surface-variant">No AI coach during the test. Use a quiet room and Chrome or Edge.</p>
       </div>
+      <label className="mt-5 flex items-center gap-2 text-sm cursor-pointer w-fit">
+        <input type="checkbox" checked={voice} onChange={e => setVoice(e.target.checked)} className="rounded text-primary focus:ring-primary" />
+        Judge reads the greeting and questions aloud <span className="text-on-surface-variant">(off by default)</span>
+      </label>
       {micError && <p className="mt-4 text-sm text-on-error-container bg-error-container/60 rounded-xl px-4 py-3">{micError}</p>}
       <button onClick={startPrep} className="mt-6 bg-primary text-on-primary font-bold px-6 py-4 rounded-xl flex items-center gap-2 shadow-lg shadow-primary/20">
         <span className="material-symbols-outlined">mic</span>Allow microphone and start the 10 minute prep
@@ -239,7 +248,7 @@ export default function Test({ user, rp, cardsById, onExit, onStudy }) {
                     : `Question ${qIndex + 1} of ${qRef.current.filter(q => q.source === 'official').length}`}
                 </p>
                 <p className="text-xl font-semibold mt-1">"{qRef.current[qIndex]?.text}"</p>
-                <button onClick={() => speak(qRef.current[qIndex]?.text)} className="mt-2 text-xs font-bold text-primary flex items-center gap-1"><span className="material-symbols-outlined text-[16px]">replay</span>Repeat the question</button>
+                {voice && <button onClick={() => speak(qRef.current[qIndex]?.text)} className="mt-2 text-xs font-bold text-primary flex items-center gap-1"><span className="material-symbols-outlined text-[16px]">replay</span>Repeat the question</button>}
               </>
             )}
             {stage === 'closing' && <p className="text-lg mt-1">"{CLOSING}"</p>}
