@@ -106,20 +106,6 @@ export default function Scenario({ rp, showJudge = false, cardsById, onOpenCard,
 
       {showJudge && (
         <>
-          <Card title="Judge's questions" icon="record_voice_over" tone="border border-amber-200">
-            <ol className="list-decimal pl-5 space-y-3 text-sm">
-              {rp.judge_questions.map((q, i) => {
-                const a = (sol.judge_question_answers || [])[i]
-                return (
-                  <li key={i}>
-                    <p className="font-semibold">{q}</p>
-                    {a?.answer?.length > 0 && <ul className="list-disc pl-5 mt-1 text-on-surface-variant">{a.answer.map((x, j) => <li key={j}>{x}</li>)}</ul>}
-                  </li>
-                )
-              })}
-            </ol>
-          </Card>
-
           <Card title="Solution" icon="lightbulb" tone="border border-secondary/30">
             {sol.overview && <p className="text-[15px] leading-relaxed mb-4">{sol.overview}</p>}
             {(sol.by_task || []).map((t, i) => (
@@ -159,6 +145,21 @@ export default function Scenario({ rp, showJudge = false, cardsById, onOpenCard,
               </div>
             )}
           </Card>
+
+          <Card title="Judge's questions (asked after the presentation)" icon="record_voice_over" tone="border border-amber-200">
+            <ol className="list-decimal pl-5 space-y-3 text-sm">
+              {rp.judge_questions.map((q, i) => {
+                const a = (sol.judge_question_answers || [])[i]
+                return (
+                  <li key={i}>
+                    <p className="font-semibold">{q}</p>
+                    {a?.answer?.length > 0 && <ul className="list-disc pl-5 mt-1 text-on-surface-variant">{a.answer.map((x, j) => <li key={j}>{x}</li>)}</ul>}
+                  </li>
+                )
+              })}
+            </ol>
+          </Card>
+
 
           {(rp.key_concepts || []).length > 0 && (
             <Card title="Key concepts" icon="menu_book">
