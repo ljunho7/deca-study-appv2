@@ -1,6 +1,9 @@
-// Shows a role play. showJudge = false is what a competitor sees (Test mode
-// prep); true adds the judge's key, judge questions, solution, key concepts
-// and rubric (Self study and results).
+// Shows a role play. showJudge = false is what a competitor sees in Test mode:
+// like the real instruction sheet there is no "Exhibits" section; tables that
+// add data the text does not already contain are printed inside the scenario,
+// and judge-only tables are hidden. showJudge = true (Self study and results)
+// shows every exhibit plus the judge's key, questions, solution, key concepts
+// and rubric.
 
 export const isJudgeExhibit = (e) => /judge|solution/i.test(e?.title || '')
 
@@ -70,7 +73,16 @@ export function RubricTable({ rubric }) {
 }
 
 export default function Scenario({ rp, showJudge = false, cardsById, onOpenCard, compact = false }) {
-  const exhibits = (rp.exhibits || []).filter(e => showJudge || !isJudgeExhibit(e))
+  const exhibits = showJudge ? (rp.exhibits || []) : []
+  // Test mode: tables printed with the scenario, as on the real sheet.
+  const sheetTables = showJudge ? [] : (rp.exhibits || []).filter(e => !isJudgeExhibit(e) && !e.judge_only && !e.repeats_scenario)
+  // Test mode wording: no "exhibits". Drop "[Table ...]" / "[...: see exhibits]"
+  // markers and "(see exhibits)", and say "below" for "in the exhibits".
+  const scenarioText = showJudge ? rp.scenario : String(rp.scenario || '')
+    .replace(/\s*\[(?:Table[^\]]*|[^\]]*\bsee exhibits?)\]/gi, '')
+    .replace(/\s*\((?:see|in) (?:the )?exhibits?\)/gi, '')
+    .replace(/\bin (?:the )?[Ee]xhibits?(?: [A-Z](?:,? (?:and )?[A-Z])*)?\b/g, 'below')
+  const caption = (t) => String(t || '').replace(/^Exhibit [A-Z][:,.]?\s*/i, '')
   const sol = rp.solution || {}
   return (
     <div className="space-y-4">
@@ -85,7 +97,10 @@ export default function Scenario({ rp, showJudge = false, cardsById, onOpenCard,
         </div>
       </Card>
 
-      <Card title="Scenario" icon="description"><Paragraphs text={rp.scenario} /></Card>
+      <Card title="Scenario" icon="description">
+        <Paragraphs text={scenarioText} />
+        {sheetTables.length > 0 && <div className="mt-4">{sheetTables.map((e, i) => <Exhibit key={i} ex={{ ...e, title: caption(e.title) }} />)}</div>}
+      </Card>
 
       <div className={`grid gap-4 ${compact ? '' : 'grid-cols-2'}`}>
         <Card title="Your tasks" icon="checklist">

@@ -4,6 +4,7 @@
 //   POST { action: 'grade', roleplay, transcript, questions }  Gemini, DECA rubric
 //   POST { action: 'judge', roleplay, transcript }             Gemini follow-up questions
 //   POST { action: 'chat', roleplay, attempt, messages }       Gemini self-study coach
+//   POST { action: 'study', section, item, messages }          Gemini coach for Cards / Exam
 // Keys live only here: GROQ_API_KEY, GEMINI_API_KEY (optional GEMINI_MODEL,
 // GROQ_MODEL). Audio is never stored.
 
@@ -160,6 +161,22 @@ Transcript: ${clip(attempt.transcript?.text, 15000)}` : ''}`
   return { reply: await gemini({ system, contents, temperature: 0.5 }) }
 }
 
+// Coach beside the Cards and Exam tabs (desktop). item is the card or
+// question on screen (or null).
+export async function study({ section, item, messages = [] }) {
+  const where = section === 'exam' ? 'practicing Finance cluster exam questions' : 'studying flashcards'
+  const system = `You are a friendly, expert DECA coach helping a high school student prepare for the Finance cluster exam used by the Accounting Applications Series (ACT). The student is ${where}. Explain in plain language with short, concrete examples. Keep answers focused and reasonably short (short paragraphs or lists). Stay on DECA, accounting, finance and business topics; gently bring the student back if they drift. Do not use dashes as punctuation.${item?.type === 'question' ? `
+
+The exam question on screen is below, with its official answer. The student may not have answered it yet: do not reveal the correct letter or answer unless the student asks for it or says they already answered. Until then, give hints and explain the concepts behind the choices. When you do discuss the answer, explain why it is right and why each other choice is wrong.` : ''}${item ? `
+
+ON SCREEN NOW: ${JSON.stringify(item)}` : `
+
+Nothing specific is on screen right now; answer general questions about the exam topics.`}`
+  const contents = messages.slice(-20).map(m => ({ role: m.role === 'model' ? 'model' : 'user', parts: [{ text: (m.ctx ? `[Asked while viewing ${m.ctx}] ` : '') + clip(m.text, 4000) }] }))
+  if (!contents.length || contents[contents.length - 1].role !== 'user') throw new UserError('Ask a question first.')
+  return { reply: await gemini({ system, contents, temperature: 0.5 }) }
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store')
   if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return res.status(405).json({ error: 'method not allowed' }) }
@@ -171,6 +188,7 @@ export default async function handler(req, res) {
     if (action === 'grade') return res.status(200).json(await grade(body))
     if (action === 'judge') return res.status(200).json(await judgeQuestions(body))
     if (action === 'chat') return res.status(200).json(await chat(body))
+    if (action === 'study') return res.status(200).json(await study(body))
     return res.status(400).json({ error: 'unknown action' })
   } catch (e) {
     console.error(e)

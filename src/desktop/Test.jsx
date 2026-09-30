@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
 import Scenario from './Scenario.jsx'
-import Calculator from './Calculator.jsx'
 import Results from './Results.jsx'
 import { rpCall, blobToBase64, speak, stopSpeaking, getMic, startRecorder, stopStream, fmtClock } from './services.js'
 import { saveAttempt } from '../lib/attempts.js'
@@ -194,7 +193,7 @@ export default function Test({ user, rp, cardsById, onExit, onStudy }) {
       <p className="text-xs font-bold uppercase tracking-wider text-primary">Test mode</p>
       <h1 className="text-3xl font-black text-on-surface leading-tight mt-1">{rp.title}</h1>
       <div className="mt-6 bg-surface-container-lowest rounded-2xl p-6 shadow-[0px_2px_8px_rgba(26,27,33,0.04)] space-y-3 text-sm">
-        <p><b>1. Prepare, 10 minutes.</b> Read the scenario and exhibits, take notes, use the four-function calculator.</p>
+        <p><b>1. Prepare, 10 minutes.</b> Read the scenario and take notes.</p>
         <p><b>2. Present, up to 10 minutes.</b> Your microphone records. The judge's greeting and questions appear on screen; present out loud, then click <i>Done presenting</i> and answer the judge's questions out loud: first the official questions, then follow-up questions the judge writes from your presentation. Recording stops at 10:00.</p>
         <p><b>3. Score.</b> Your talk is transcribed and scored on this role play's rubric (100 points). The attempt is saved permanently.</p>
         <p className="text-on-surface-variant">No AI coach during the test. Use a quiet room and Chrome or Edge.</p>
@@ -221,7 +220,6 @@ export default function Test({ user, rp, cardsById, onExit, onStudy }) {
             <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={14} placeholder="Plan your presentation here. You keep these notes while presenting."
               className="w-full resize-none rounded-xl border border-outline-variant bg-surface-container-lowest p-3 text-sm focus:border-primary focus:ring-primary" />
           </div>
-          <Calculator />
           <button onClick={startPresent} className="w-full bg-primary text-on-primary font-bold py-3.5 rounded-xl flex items-center justify-center gap-2">
             <span className="material-symbols-outlined">record_voice_over</span>I'm ready: start presenting
           </button>
@@ -258,7 +256,7 @@ export default function Test({ user, rp, cardsById, onExit, onStudy }) {
             </div>
           </div>
           <details className="bg-surface-container-lowest rounded-2xl p-5 shadow-[0px_2px_8px_rgba(26,27,33,0.04)]">
-            <summary className="text-sm font-bold cursor-pointer">Scenario and exhibits</summary>
+            <summary className="text-sm font-bold cursor-pointer">Scenario</summary>
             <div className="mt-4"><Scenario rp={rp} compact /></div>
           </details>
         </div>

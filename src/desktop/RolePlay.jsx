@@ -16,7 +16,7 @@ export default function RolePlay({ user, cards }) {
   const [view, setView] = useState({ screen: 'library' })   // library | study | test | results
   const [rp, setRp] = useState(null)
   const [attempts, setAttempts] = useState(() => readAttempts(user.key))
-  const [filters, setFilters] = useState({ kind: 'all', level: 'all', area: 'all', status: 'all', q: '' })
+  const [filters, setFilters] = useState({ kind: 'official', level: 'all', area: 'all', status: 'all', q: '' })
   const [open, setOpen] = useState(null)
   const [testKey, setTestKey] = useState(0)
 

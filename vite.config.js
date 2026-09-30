@@ -69,6 +69,7 @@ function devRoleplay() {
     },
     judge: ({ roleplay }) => ({ questions: (roleplay.judge_questions || []).slice(0, 2).map(q => `(AI judge mock) ${q}`) }),
     chat: ({ messages }) => ({ reply: `(dev mock coach) You asked: "${messages[messages.length - 1]?.text}". Real answers need GEMINI_API_KEY.` }),
+    study: ({ item, messages }) => ({ reply: `(dev mock coach) You asked: "${messages[messages.length - 1]?.text}" while viewing ${item ? (item.term || item.question.slice(0, 50)) : 'nothing'}.` }),
   }
   return {
     name: 'dev-roleplay',
@@ -84,7 +85,7 @@ function devRoleplay() {
           try {
             if (real) {
               const api = await server.ssrLoadModule('/api/roleplay.js')
-              const fn = { transcribe: () => api.transcribe(body.audio, body.mime), grade: () => api.grade(body), judge: () => api.judgeQuestions(body), chat: () => api.chat(body) }[body.action]
+              const fn = { transcribe: () => api.transcribe(body.audio, body.mime), grade: () => api.grade(body), judge: () => api.judgeQuestions(body), chat: () => api.chat(body), study: () => api.study(body) }[body.action]
               return fn ? send(200, await fn()) : send(400, { error: 'unknown action' })
             }
             if (!mock[body.action]) return send(400, { error: 'unknown action' })

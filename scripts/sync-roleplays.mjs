@@ -119,6 +119,24 @@ for (const rp of practice) {
   all.push({ ...rp, kind: 'practice', rubric })
 }
 
+// Real ACT role plays have no "Exhibits" section: data tables are printed
+// inside the participant's instructions. The converted files moved those
+// tables into exhibits; mark each one so Test mode can show only the tables
+// that add data the scenario text does not already contain (inside the
+// scenario, with no "Exhibits" heading), and hide judge-only tables.
+const words = (s) => String(s).toLowerCase().replace(/,/g, '').match(/[a-z]{3,}|\d+(\.\d+)?/g) || []
+for (const rp of all) {
+  const text = new Set(words(rp.scenario))
+  // A "[Table ...]" / "[...: see exhibits]" marker, or text pointing to the
+  // exhibits, means the tables are part of the sheet: always show them.
+  const placeholder = /\[Table|\bexhibits?\b/i.test(rp.scenario)
+  rp.exhibits = (rp.exhibits || []).map(e => {
+    const cells = words((e.rows || []).flat().join(' '))
+    const covered = cells.length ? cells.filter(w => text.has(w)).length / cells.length : 1
+    return { ...e, judge_only: /judge|solution/i.test(e.title || ''), repeats_scenario: !placeholder && covered >= 0.8 }
+  })
+}
+
 for (const rp of all) {
   if (!rp.rp_id || !/^[\w-]+$/.test(rp.rp_id)) errors.push(`bad rp_id ${JSON.stringify(rp.rp_id)}`)
   const total = rp.rubric.items.reduce((s, i) => s + i.max, 0)

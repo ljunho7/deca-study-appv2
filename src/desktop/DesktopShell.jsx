@@ -1,5 +1,7 @@
 import ModeSwitch from '../components/ModeSwitch.jsx'
+import { useState } from 'react'
 import RolePlay from './RolePlay.jsx'
+import StudyCoach from './StudyCoach.jsx'
 
 // Desktop layout: sidebar navigation and a wide content area. Home, Cards,
 // Exam and Profile are the same screens as the phone app (passed in from
@@ -14,7 +16,7 @@ export const DESKTOP_TABS = [
   { key: 'profile',  label: 'Profile',   icon: 'person' },
 ]
 
-export default function DesktopShell({ user, cards, tab, onTabChange, screens, syncState, syncError, syncTick, mode, onModeChange }) {
+export default function DesktopShell({ user, cards, questions, tab, onTabChange, screens, syncState, syncError, syncTick, mode, onModeChange }) {
   const content = tab === 'roleplay' ? <RolePlay user={user} cards={cards} /> : screens[tab]
   // Leaving the Role Play tab in the middle of a test would lose it.
   const go = (key) => {
@@ -23,6 +25,10 @@ export default function DesktopShell({ user, cards, tab, onTabChange, screens, s
     window.__rpBusy = false
     onTabChange(key)
   }
+  // AI coach beside Cards and Exam; can be hidden (remembered per device).
+  const [coachOpen, setCoachOpen] = useState(() => { try { return localStorage.getItem('deca_coach_open') !== '0' } catch { return true } })
+  const toggleCoach = (open) => { setCoachOpen(open); try { localStorage.setItem('deca_coach_open', open ? '1' : '0') } catch {} }
+  const coachTab = tab === 'cards' || tab === 'exam'
   // Phone screens are built for a narrow column; give them a comfortable width.
   const width = tab === 'roleplay' ? 'max-w-6xl' : 'max-w-2xl'
 
@@ -62,14 +68,19 @@ export default function DesktopShell({ user, cards, tab, onTabChange, screens, s
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col min-w-0">
+      <main className="flex-1 flex flex-col min-w-0 relative">
         {syncState === 'error' && (
           <div className="bg-error-container text-on-error-container text-xs px-4 py-2 text-center">
             Progress is not being saved to the server, so it only stays on this device. ({syncError})
           </div>
         )}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar" key={syncTick}>
-          <div className={`mx-auto w-full ${width} min-h-full`}>{content}</div>
+        <div className="flex-1 flex min-h-0">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar min-w-0" key={syncTick}>
+            <div className={`mx-auto w-full ${width} min-h-full`}>{content}</div>
+          </div>
+          {coachTab && (coachOpen
+            ? <div className="w-[380px] flex-shrink-0 p-4 pt-14 min-h-0"><StudyCoach key={tab} user={user} kind={tab} cards={cards} questions={questions} onCollapse={() => toggleCoach(false)} /></div>
+            : <button onClick={() => toggleCoach(true)} className="absolute right-4 bottom-6 z-30 bg-primary text-on-primary font-bold text-sm px-4 py-2.5 rounded-full shadow-lg flex items-center gap-1.5"><span className="material-symbols-outlined text-[20px]">smart_toy</span>AI coach</button>)}
         </div>
       </main>
     </div>

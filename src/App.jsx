@@ -135,7 +135,7 @@ export default function App() {
   if (mode === 'desktop') return (
     <div className="relative">
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-on-surface-variant text-sm">Loading desktop…</div>}>
-        <DesktopShell user={user} cards={flashcardsData} tab={tab} onTabChange={setTab} screens={screens}
+        <DesktopShell user={user} cards={flashcardsData} questions={questionsData} tab={tab} onTabChange={setTab} screens={screens}
           syncState={syncState} syncError={syncError} syncTick={syncTick}
           mode={mode} onModeChange={changeMode} />
       </Suspense>

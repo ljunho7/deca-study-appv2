@@ -1,6 +1,23 @@
 import { useState } from 'react'
 import Scenario from './Scenario.jsx'
 import ChatPanel from './ChatPanel.jsx'
+import { rpCall } from './services.js'
+
+// AI coach for this role play; can include the student's latest test.
+function RolePlayCoach({ user, rp, latestAttempt }) {
+  const [useAttempt, setUseAttempt] = useState(!!latestAttempt?.grade)
+  return (
+    <ChatPanel
+      storeKey={`deca_rpchat_${user.key}_${rp.rp_id}`}
+      request={async (messages) => (await rpCall('chat', { roleplay: rp, attempt: useAttempt ? latestAttempt : null, messages })).reply}
+      topBar={latestAttempt?.grade && (
+        <label className="px-4 py-2 text-xs text-on-surface-variant flex items-center gap-2 border-b border-surface-container cursor-pointer">
+          <input type="checkbox" checked={useAttempt} onChange={e => setUseAttempt(e.target.checked)} className="rounded text-primary focus:ring-primary" />
+          Include my latest test ({latestAttempt.grade.total}/100) so the coach can explain my scores
+        </label>
+      )} />
+  )
+}
 
 // Self study mode: the whole role play (including the judge's key, judge
 // questions, solution and rubric) next to the AI coach. No timers.
@@ -21,7 +38,7 @@ export default function Study({ user, rp, latestAttempt, cardsById, onBack, onTe
         <div className="flex-1 min-w-0 overflow-y-auto no-scrollbar pb-8">
           <Scenario rp={rp} showJudge cardsById={cardsById} onOpenCard={setCard} />
         </div>
-        <div className="w-[380px] flex-shrink-0 min-h-0"><ChatPanel user={user} rp={rp} latestAttempt={latestAttempt} /></div>
+        <div className="w-[380px] flex-shrink-0 min-h-0"><RolePlayCoach user={user} rp={rp} latestAttempt={latestAttempt} /></div>
       </div>
       {card && (
         <div className="fixed inset-0 z-[55] bg-black/30 flex items-center justify-center" onClick={() => setCard(null)}>

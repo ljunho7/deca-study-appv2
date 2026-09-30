@@ -6,7 +6,10 @@ export const REPORT_EMAIL = 'ljunho7@gmail.com'
 /* global __APP_BUILD__ */
 const ctx = { screen: 'app', item: null, user: null, build: typeof __APP_BUILD__ !== 'undefined' ? __APP_BUILD__ : null, content: null }
 const errors = []
-export function setReportContext(patch) { Object.assign(ctx, patch) }
+const listeners = new Set()
+export function setReportContext(patch) { Object.assign(ctx, patch); listeners.forEach(fn => fn({ ...ctx })) }
+// The desktop AI coach follows the same context (which card or question is on screen).
+export function onReportContext(fn) { listeners.add(fn); fn({ ...ctx }); return () => listeners.delete(fn) }
 
 if (typeof window !== 'undefined') {
   const push = (msg) => { errors.push(`${new Date().toISOString().slice(11, 19)} ${String(msg).slice(0, 300)}`); if (errors.length > 8) errors.shift() }
