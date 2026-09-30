@@ -137,6 +137,66 @@ for (const rp of all) {
   })
 }
 
+// Exhibits placed where the scenario mentions them. Each exhibit gets
+// at_paragraph (index of the scenario paragraph, split on blank lines) when
+// the text refers to it: "Exhibit A" / "Exhibits A and B", a
+// "[Title: see exhibits]" or "[Table: ...]" marker, or a general "exhibits"
+// mention. The app shows it right after that paragraph and drops the marker.
+const PLACEHOLDER = /\[(?:Table[^\]]*|[^\]]*\bsee exhibits?)\]/gi
+const unplaced = []
+for (const rp of all) {
+  const paras = String(rp.scenario || '').split(/\n{2,}/)
+  const exs = rp.exhibits || []
+  const lettersIn = (p) => {
+    const out = new Set()
+    for (const m of p.matchAll(/\bExhibits?\s+((?:[A-Z]\b(?:\s*,\s*|\s+and\s+|\s*;\s*Exhibit\s+)?)+)/g)) for (const L of m[1].match(/\b[A-Z]\b/g) || []) out.add(L)
+    return out
+  }
+  const overlap = (a, b) => {
+    const A = new Set(words(a)), B = words(b)
+    return B.length ? B.filter(w => A.has(w)).length / B.length : 0
+  }
+  exs.forEach(e => { delete e.at_paragraph })
+  // 1. Exhibit letters.
+  exs.forEach(e => {
+    const L = /^Exhibit\s+([A-Z])\b/i.exec(e.title || '')?.[1]?.toUpperCase()
+    if (!L) return
+    const i = paras.findIndex(p => lettersIn(p).has(L))
+    if (i >= 0) e.at_paragraph = i
+  })
+  // 2. "[Title: see exhibits]" and "[Table: ...]" markers, best title/content match.
+  paras.forEach((p, i) => {
+    for (const m of p.match(PLACEHOLDER) || []) {
+      const label = m.replace(/^\[|\]$/g, '').replace(/:?\s*see exhibits?$/i, '').replace(/^Table:?\s*/i, '')
+      let best = null, bestScore = 0
+      for (const e of exs) {
+        if (e.at_paragraph != null || /judge|solution/i.test(e.title || '')) continue
+        const s = Math.max(overlap(e.title || '', label), overlap(label + ' ' + (e.rows || []).flat().join(' '), e.title || ''))
+        if (s > bestScore) { best = e; bestScore = s }
+      }
+      if (best && bestScore >= 0.5) best.at_paragraph = i
+    }
+  })
+  // 3. A general mention ("shown in the exhibits", a marker nothing matched):
+  //    remaining participant tables go after the first such paragraph.
+  const generic = paras.findIndex(p => /\bexhibits?\b|\[Table/i.test(p))
+  if (generic >= 0) exs.forEach(e => { if (e.at_paragraph == null && !/judge|solution/i.test(e.title || '')) e.at_paragraph = generic })
+  // 4. Tables with data the text does not contain: after a "shown below" /
+  //    "the following" paragraph, else after the paragraph they match best
+  //    (never after the "You must" task list or the closing paragraph).
+  const body = paras.map((p, i) => i).filter(i => i < paras.length - 1 && !/^\s*(You must|You will meet)/i.test(paras[i]))
+  for (const e of exs) {
+    if (e.at_paragraph != null || e.repeats_scenario || /judge|solution/i.test(e.title || '')) continue
+    const below = body.find(i => /\b(shown|listed) below\b|\bthe following\b[^.]*:\s*$/i.test(paras[i]))
+    if (below != null) { e.at_paragraph = below; continue }
+    let best = null, bestScore = 0
+    for (const i of body) { const s = overlap(paras[i], `${e.title} ${(e.rows || []).flat().join(' ')}`); if (s > bestScore) { best = i; bestScore = s } }
+    if (best != null) e.at_paragraph = best
+  }
+  for (const e of exs) if (e.at_paragraph == null && !/judge|solution/i.test(e.title || '') && paras.some(p => /\bexhibits?\b|\[Table/i.test(p))) unplaced.push(`${rp.rp_id}: "${e.title}"`)
+}
+if (unplaced.length) warnings.push(`exhibits the scenario mentions but that could not be placed:\n    ${unplaced.join('\n    ')}`)
+
 // Solution tables (DECA Role play/solution_tables/<rp_id>.json): debit/credit
 // and accounting-equation tables shown inside each solution step, with the
 // bullets, entries and calculations they replace hidden (nothing shown twice).

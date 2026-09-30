@@ -42,10 +42,6 @@ export function Exhibit({ ex }) {
   )
 }
 
-const Paragraphs = ({ text }) => String(text || '').split(/\n{2,}/).map((p, i) => (
-  <p key={i} className="text-[15px] leading-relaxed text-on-surface mb-3 last:mb-0 whitespace-pre-line">{p}</p>
-))
-
 const money = (n) => Number(n).toLocaleString('en-US', { minimumFractionDigits: Number(n) % 1 ? 2 : 0, maximumFractionDigits: 2 })
 const signed = (n) => !n ? '0' : `${n > 0 ? '+' : '−'}$${money(Math.abs(n))}`
 
@@ -132,16 +128,23 @@ export function RubricTable({ rubric }) {
 }
 
 export default function Scenario({ rp, showJudge = false, cardsById, onOpenCard, compact = false }) {
-  const exhibits = showJudge ? (rp.exhibits || []) : []
-  // Test mode: tables printed with the scenario, as on the real sheet.
-  const sheetTables = showJudge ? [] : (rp.exhibits || []).filter(e => !isJudgeExhibit(e) && !e.judge_only && !e.repeats_scenario)
-  // Test mode wording: no "exhibits". Drop "[Table ...]" / "[...: see exhibits]"
-  // markers and "(see exhibits)", and say "below" for "in the exhibits".
-  const scenarioText = showJudge ? rp.scenario : String(rp.scenario || '')
-    .replace(/\s*\[(?:Table[^\]]*|[^\]]*\bsee exhibits?)\]/gi, '')
-    .replace(/\s*\((?:see|in) (?:the )?exhibits?\)/gi, '')
-    .replace(/\bin (?:the )?[Ee]xhibits?(?: [A-Z](?:,? (?:and )?[A-Z])*)?\b/g, 'below')
-  const caption = (t) => String(t || '').replace(/^Exhibit [A-Z][:,.]?\s*/i, '')
+  // Exhibits appear inside the scenario, right after the paragraph that
+  // mentions them (at_paragraph, set by the sync); their "[...: see exhibits]"
+  // / "[Table ...]" markers are removed. Test mode shows only what the
+  // participant's sheet has (no judge tables) and never says "exhibit".
+  const all = rp.exhibits || []
+  const forParticipant = (e) => !isJudgeExhibit(e) && !e.judge_only
+  const inlineAt = (i) => all.filter(e => e.at_paragraph === i && (showJudge || forParticipant(e)))
+  const leftover = all.filter(e => e.at_paragraph == null)
+  const exhibits = showJudge ? leftover : []                                                  // Self study: separate section
+  const sheetTables = showJudge ? [] : leftover.filter(e => forParticipant(e) && !e.repeats_scenario)  // Test: end of scenario
+  const clean = (p) => {
+    let t = p.replace(/\s*\[(?:Table[^\]]*|[^\]]*\bsee exhibits?)\]/gi, '')
+    if (!showJudge) t = t.replace(/\s*\((?:see|in) (?:the )?exhibits?\)/gi, '').replace(/\bin (?:the )?[Ee]xhibits?(?: [A-Z](?:,? (?:and )?[A-Z])*)?\b/g, 'below')
+    return t.trim()
+  }
+  const paragraphs = String(rp.scenario || '').split(/\n{2,}/)
+  const caption = (t) => showJudge ? t : String(t || '').replace(/^Exhibit [A-Z][:,.]?\s*/i, '')
   const sol = rp.solution || {}
   return (
     <div className="space-y-4">
@@ -157,7 +160,15 @@ export default function Scenario({ rp, showJudge = false, cardsById, onOpenCard,
       </Card>
 
       <Card title="Scenario" icon="description">
-        <Paragraphs text={scenarioText} />
+        {paragraphs.map((p, i) => {
+          const text = clean(p), tables = inlineAt(i)
+          return (
+            <div key={i}>
+              {text && <p className="text-[15px] leading-relaxed text-on-surface mb-3 whitespace-pre-line">{text}</p>}
+              {tables.length > 0 && <div className="mb-4">{tables.map((e, j) => <Exhibit key={j} ex={{ ...e, title: caption(e.title) }} />)}</div>}
+            </div>
+          )
+        })}
         {sheetTables.length > 0 && <div className="mt-4">{sheetTables.map((e, i) => <Exhibit key={i} ex={{ ...e, title: caption(e.title) }} />)}</div>}
       </Card>
 
