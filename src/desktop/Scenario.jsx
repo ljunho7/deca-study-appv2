@@ -62,7 +62,7 @@ export function JournalTable({ title, lines }) {
         <tbody>
           {lines.map((l, j) => (
             <tr key={j} className="border-t border-outline-variant/30">
-              <td className={`px-3 py-1 ${l.credit != null && l.debit == null ? 'pl-10' : ''}`}>{l.account}</td>
+              <td className={`px-3 py-1 ${l.credit != null && l.debit == null ? 'pl-10' : ''}`}>{l.category && <span className="font-semibold text-on-surface-variant">{l.category} - </span>}{l.account}</td>
               <td className="px-3 py-1 text-right tabular-nums">{l.debit != null ? `$${money(l.debit)}` : ''}</td>
               <td className="px-3 py-1 text-right tabular-nums">{l.credit != null ? `$${money(l.credit)}` : ''}</td>
             </tr>

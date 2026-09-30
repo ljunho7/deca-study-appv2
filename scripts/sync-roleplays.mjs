@@ -161,6 +161,20 @@ for (const rp of all) {
   rp.solution = { ...rp.solution, tables: { tasks: t.tasks || [], covers_journal_entries: !!t.covers_journal_entries, hide_calculations: t.hide_calculations || [] } }
 }
 
+// Account categories ("Asset - Cash") for every journal line, from
+// data/account_categories.json. An account missing there fails the sync.
+const CATS = JSON.parse(fs.readFileSync('data/account_categories.json', 'utf8')).accounts
+const tagLines = (rp, lines) => lines.map(l => {
+  const category = CATS[String(l.account).trim()]
+  if (!category) errors.push(`${rp.rp_id}: account "${l.account}" has no category; add it to data/account_categories.json`)
+  return { ...l, category: category || null }
+})
+for (const rp of all) {
+  const sol = rp.solution || {}
+  if (sol.journal_entries) sol.journal_entries = sol.journal_entries.map(je => ({ ...je, lines: tagLines(rp, je.lines || []) }))
+  for (const tk of sol.tables?.tasks || []) tk.tables = (tk.tables || []).map(tb => tb.type === 'journal' ? { ...tb, lines: tagLines(rp, tb.lines) } : tb)
+}
+
 for (const rp of all) {
   if (!rp.rp_id || !/^[\w-]+$/.test(rp.rp_id)) errors.push(`bad rp_id ${JSON.stringify(rp.rp_id)}`)
   const total = rp.rubric.items.reduce((s, i) => s + i.max, 0)
