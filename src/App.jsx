@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import Login from './components/Login.jsx'
 import Home from './components/Home.jsx'
 import Flashcards from './components/Flashcards.jsx'
@@ -9,6 +9,11 @@ import { getProgress, saveProgress, mergeNewest } from './lib/storage.js'
 import { setReportContext } from './lib/report.js'
 import { mergeUsage, startUsageTracking } from './lib/usage.js'
 import { mergeBookmarks, seedBookmarks } from './lib/bookmarks.js'
+import ModeSwitch from './components/ModeSwitch.jsx'
+import { readMode, saveMode, applyModeClass } from './lib/mode.js'
+
+// Desktop layout (with the Role Play tab) loads only in desktop mode.
+const DesktopShell = lazy(() => import('./desktop/DesktopShell.jsx'))
 
 const TABS = [
   { key: 'home',    label: 'Home',    icon: 'home' },
@@ -22,6 +27,15 @@ export default function App() {
     try { return JSON.parse(localStorage.getItem('deca_user') || 'null') } catch { return null }
   })
   const [tab, setTab] = useState('home')
+
+  // App (phone) or Desktop layout, remembered per device. Role Play is desktop
+  // only, so switching to App from that tab goes to Home.
+  const [mode, setMode] = useState(readMode)
+  useEffect(() => { applyModeClass(mode) }, [mode])
+  const changeMode = (m) => {
+    saveMode(m); setMode(m)
+    if (m === 'app' && !TABS.some(t => t.key === tab)) setTab('home')
+  }
   const [flashcardsData, setFlashcardsData] = useState(null)
   const [questionsData, setQuestionsData] = useState(null)
 
@@ -87,15 +101,26 @@ export default function App() {
     fetch('/questions.json').then(r => r.json()).then(setQuestionsData).catch(() => {})
   }, [])
 
+  const modeSwitch = (
+    <ModeSwitch mode={mode} onChange={changeMode} className="absolute left-3 z-40"
+      style={{ top: 'calc(env(safe-area-inset-top) + 6px)' }} />
+  )
+
   if (!user) return (
-    <div className="relative">
-      <Login onLogin={u => { localStorage.setItem('deca_user', JSON.stringify(u)); setUser(u) }} />
-      <ReportBug />
+    <div className={mode === 'desktop' ? 'min-h-screen bg-surface-container-low' : ''}>
+      <div className={`relative ${mode === 'desktop' ? 'max-w-[430px] mx-auto bg-background shadow-xl' : ''}`}>
+        <Login onLogin={u => { localStorage.setItem('deca_user', JSON.stringify(u)); setUser(u) }} />
+        {modeSwitch}
+        <ReportBug />
+      </div>
     </div>
   )
 
   if (syncState === 'syncing' && syncTick === 0) return (
-    <div className="min-h-screen bg-background flex items-center justify-center text-on-surface-variant text-sm">Loading your progress…</div>
+    <div className="min-h-screen bg-background flex items-center justify-center text-on-surface-variant text-sm relative">
+      Loading your progress…
+      <ReportBug wide={mode === 'desktop'} />
+    </div>
   )
 
   const screens = {
@@ -105,9 +130,21 @@ export default function App() {
     profile: <Profile user={user} cards={flashcardsData} questions={questionsData} onLogout={() => { localStorage.removeItem('deca_user'); setUser(null) }} />,
   }
 
+  if (mode === 'desktop') return (
+    <div className="relative">
+      <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-on-surface-variant text-sm">Loading desktop…</div>}>
+        <DesktopShell user={user} tab={tab} onTabChange={setTab} screens={screens}
+          syncState={syncState} syncError={syncError} syncTick={syncTick}
+          mode={mode} onModeChange={changeMode} />
+      </Suspense>
+      <ReportBug wide />
+    </div>
+  )
+
   return (
     <div className="flex flex-col relative" style={{ height: '100dvh' }}>
       <ReportBug />
+      {tab === 'home' && modeSwitch}
       {syncState === 'error' && (
         <div className="bg-error-container text-on-error-container text-xs px-4 py-2 text-center">
           Progress is not being saved to the server, so it only stays on this device. ({syncError})

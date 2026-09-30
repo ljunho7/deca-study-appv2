@@ -5,7 +5,8 @@ import { sendReport, reportText, mailtoHref } from '../lib/report.js'
 // screen's header, so it never covers the bottom nav or answer buttons).
 // "Send report" saves the report on the server; email and copy are only
 // offered if sending fails.
-export default function ReportBug() {
+// wide: desktop layout, where the form opens as a centered dialog.
+export default function ReportBug({ wide = false }) {
   const [open, setOpen]   = useState(false)
   const [note, setNote]   = useState('')
   const [state, setState] = useState('idle')   // idle | sending | sent | error
@@ -37,8 +38,8 @@ export default function ReportBug() {
       </button>
 
       {open && (
-        <div className="absolute inset-0 z-[60] bg-black/30 flex items-end" onClick={close}>
-          <div className="w-full bg-background rounded-t-3xl px-5 pt-5 shadow-2xl" onClick={e => e.stopPropagation()}
+        <div className={`${wide ? 'fixed items-center justify-center' : 'absolute items-end'} inset-0 z-[60] bg-black/30 flex`} onClick={close}>
+          <div className={`w-full bg-background px-5 pt-5 shadow-2xl ${wide ? 'max-w-lg rounded-3xl' : 'rounded-t-3xl'}`} onClick={e => e.stopPropagation()}
                style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)' }}>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-black text-on-surface tracking-tight flex items-center gap-2">
