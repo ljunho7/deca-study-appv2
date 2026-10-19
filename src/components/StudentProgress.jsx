@@ -3,6 +3,7 @@ import { getProgress } from '../lib/storage.js'
 import { cardStatus, questionStatus } from '../lib/review.js'
 import { usageByDay, dayKey } from '../lib/usage.js'
 import { attemptsFor } from '../lib/attempts.js'
+import PerformanceDetail from './PerformanceDetail.jsx'
 
 // Read only view of another student's progress, shown on the Debug account's
 // Profile. Reads the same server copy the student's devices sync to.
@@ -51,7 +52,9 @@ export default function StudentProgress({ student, cards, questions }) {
   const cCount = (st) => cardList.filter(c => cardStatus(fc[c.id]) === st).length
   const qCount = (st) => qList.filter(q => questionStatus(qp[q.id]) === st).length
   const marked = (kind, list) => list.filter(x => prog?.bookmarks?.[kind]?.[x.id]?.on).length
-  const cKnown = cCount('known'), cStudied = cardList.length - cCount('new')
+  const cKnown = cCount('known')
+  // Studied = answered by the student; cascade-only "review" entries are not studied.
+  const cStudied = cardList.filter(c => (fc[c.id]?.reviews || 0) > 0).length
   const attempts = Object.values(qp).reduce((s, e) => s + (e.attempts || 0), 0)
   const correct  = Object.values(qp).reduce((s, e) => s + (e.correct || 0), 0)
 
@@ -124,6 +127,10 @@ export default function StudentProgress({ student, cards, questions }) {
               <Stat label="Review"    val={qCount('review')}    color="text-violet-700" />
               <Stat label="New"       val={qCount('new')} />
             </div>
+          </Section>
+
+          <Section title="Performance detail">
+            <PerformanceDetail prog={prog} cards={cardList} questions={qList} />
           </Section>
 
           <Section title={`Practice sessions · ${exams.length}${avg != null ? ` · last 5 avg ${avg}%` : ''}`}>

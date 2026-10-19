@@ -59,6 +59,7 @@ git push origin main   # Vercel builds automatically
 - Tabs are Home, Cards, Exam, Profile. The PIs tab (shared PI tracker) was removed on Sept 29, 2026; its old checklist data is still in Blob at `shared/pi-tracker.json`, and the code is in git history.
 - Exam question text is `text-base` (16px), answer choices `text-sm` (14px). Keep the question at least as large as the choices.
 - Bug button (top right of every screen) sends a report to `POST /api/report` (saved in Blob under `reports/`). Reports are listed on the Debug account's Profile screen, with a delete button per report and "Clear all". Optional email copies need `RESEND_API_KEY` in Vercel (see README).
+- Debug's Profile also has "Performance detail" (`src/components/PerformanceDetail.jsx`): by exam category, exam year, card chapter and role play rubric part, computed on screen only. Never write to another student's progress from the Debug view. A card counts as studied only if it has `reviews > 0` (cascade-only review entries are "flagged", not studied).
 - Debug's Profile shows Hannah's progress (read only, from `GET /api/progress?user=hannah`) including usage time. Usage is tracked by `src/lib/usage.js` as `usage[device][day] = seconds` inside the progress record; `api/progress.js` and the login sync merge it by max per device and day. Keep that merge if progress code changes.
 - The main scroll area hides its scroll bar (`no-scrollbar`); keep it that way.
 - Autosave: localStorage instantly, server sync shortly after each change and on tab hide/close via `sendBeacon`.
