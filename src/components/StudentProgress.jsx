@@ -35,7 +35,7 @@ const Section = ({ title, children }) => (
   </div>
 )
 
-export default function StudentProgress({ student, cards, questions }) {
+export default function StudentProgress({ student, cards, questions, onViewAs }) {
   const [prog, setProg]   = useState(null)
   const [state, setState] = useState('loading')   // loading | ok | error
   const [error, setError] = useState('')
@@ -80,9 +80,16 @@ export default function StudentProgress({ student, cards, questions }) {
           <p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant">{student.name}'s progress</p>
           {state === 'ok' && <p className="text-[11px] text-on-surface-variant mt-0.5">Last active {ago(prog?.lastActive)}</p>}
         </div>
+        <div className="flex items-center gap-3">
+        {onViewAs && (
+          <button onClick={() => onViewAs(student)} className="text-xs font-bold text-primary flex items-center gap-1 active:opacity-70">
+            <span className="material-symbols-outlined text-[18px]">visibility</span>View as {student.name}
+          </button>
+        )}
         <button onClick={load} aria-label={`Refresh ${student.name}'s progress`} className="text-primary active:opacity-70 flex items-center">
           <span className={`material-symbols-outlined text-[20px] ${state === 'loading' ? 'animate-spin' : ''}`}>refresh</span>
         </button>
+        </div>
       </div>
 
       {state === 'error' && <p className="px-5 py-3.5 text-xs text-error">Could not load progress ({error}).</p>}

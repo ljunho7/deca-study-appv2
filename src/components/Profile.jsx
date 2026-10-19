@@ -77,7 +77,7 @@ const AVATAR_COLORS = [
 const getAvatarColor = name => AVATAR_COLORS[name.charCodeAt(0) % AVATAR_COLORS.length]
 const initials = name => name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()
 
-export default function Profile({ user, cards, questions, onLogout }) {
+export default function Profile({ user, cards, questions, onLogout, onViewAs }) {
   const [stats, setStats] = useState({ known:0, examCount:0, examAvg:0, totalPoints:0, streak:0 })
   const [history, setHistory] = useState([])
   const PROG_KEY = `deca_progress_${user.key}`
@@ -156,7 +156,7 @@ export default function Profile({ user, cards, questions, onLogout }) {
           </div>
         )}
 
-        {user.key === ADMIN_KEY && <StudentProgress student={STUDENT} cards={cards} questions={questions} />}
+        {user.key === ADMIN_KEY && <StudentProgress student={STUDENT} cards={cards} questions={questions} onViewAs={onViewAs} />}
         {user.key === ADMIN_KEY && <Reports />}
 
         {/* About */}
@@ -183,7 +183,7 @@ export default function Profile({ user, cards, questions, onLogout }) {
         <button onClick={onLogout}
           className="w-full bg-surface-container-lowest border border-error/20 text-error font-semibold py-4 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all">
           <span className="material-symbols-outlined text-[20px]">logout</span>
-          Sign out
+          {user.viewOnly ? 'Exit view' : 'Sign out'}
         </button>
 
         <p className="text-center text-[11px] text-outline pb-2">

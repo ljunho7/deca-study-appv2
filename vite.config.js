@@ -35,6 +35,7 @@ function devProgress() {
             let body = {}
             try { body = JSON.parse(raw || '{}') } catch {}
             if (!body.user || !body.data) return send(400, { error: 'Missing user or data' })
+            if (String(body.user).startsWith('viewas_')) return send(403, { error: 'view-only copy, not saved' })
             const merged = mergeProgress(read(body.user), body.data)
             fs.mkdirSync(dir, { recursive: true })
             fs.writeFileSync(file(body.user), JSON.stringify(merged))

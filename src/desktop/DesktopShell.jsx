@@ -16,7 +16,7 @@ export const DESKTOP_TABS = [
   { key: 'profile',  label: 'Profile',   icon: 'person' },
 ]
 
-export default function DesktopShell({ user, cards, questions, tab, onTabChange, screens, syncState, syncError, syncTick, mode, onModeChange }) {
+export default function DesktopShell({ user, cards, questions, tab, onTabChange, screens, syncState, syncError, syncTick, mode, onModeChange, banner }) {
   const content = tab === 'roleplay' ? <RolePlay user={user} cards={cards} /> : screens[tab]
   // Leaving the Role Play tab in the middle of a test would lose it.
   const go = (key) => {
@@ -69,6 +69,7 @@ export default function DesktopShell({ user, cards, questions, tab, onTabChange,
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 relative">
+        {banner}
         {syncState === 'error' && (
           <div className="bg-error-container text-on-error-container text-xs px-4 py-2 text-center">
             Progress is not being saved to the server, so it only stays on this device. ({syncError})

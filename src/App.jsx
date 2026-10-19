@@ -5,7 +5,7 @@ import Flashcards from './components/Flashcards.jsx'
 import Exam from './components/Exam.jsx'
 import Profile from './components/Profile.jsx'
 import ReportBug from './components/ReportBug.jsx'
-import { getProgress, saveProgress, mergeNewest } from './lib/storage.js'
+import { getProgress, saveProgress, mergeNewest, VIEW_PREFIX, setViewOnlyActive } from './lib/storage.js'
 import { setReportContext } from './lib/report.js'
 import { mergeUsage, startUsageTracking } from './lib/usage.js'
 import { mergeBookmarks, seedBookmarks } from './lib/bookmarks.js'
@@ -29,6 +29,26 @@ export default function App() {
   })
   const [tab, setTab] = useState('home')
 
+  // View-as mode (Debug only): see exactly what a student sees, read only.
+  // The screens run as "viewas_<key>" on a copy of the student's server record;
+  // nothing is saved (see VIEW_PREFIX in src/lib/storage.js).
+  const [viewAs, setViewAs] = useState(() => { try { return JSON.parse(localStorage.getItem('deca_view_as') || 'null') } catch { return null } })
+  const viewing = user?.key === 'debug' && viewAs ? viewAs : null
+  const active = viewing ? { key: VIEW_PREFIX + viewing.key, name: viewing.name, viewOnly: true, viewing: viewing.key } : user
+  useEffect(() => { setViewOnlyActive(!!active?.viewOnly) }, [active?.key])
+  const clearViewCopy = (key) => {
+    try { for (const k of Object.keys(localStorage)) if (k.includes(VIEW_PREFIX + key)) localStorage.removeItem(k) } catch {}
+  }
+  const startViewAs = (student) => {
+    try { localStorage.setItem('deca_view_as', JSON.stringify(student)) } catch {}
+    setViewAs(student); setTab('home')
+  }
+  const exitViewAs = () => {
+    if (viewAs) clearViewCopy(viewAs.key)
+    try { localStorage.removeItem('deca_view_as') } catch {}
+    setViewAs(null); setTab('profile')
+  }
+
   // App (phone) or Desktop layout, remembered per device. Role Play is desktop
   // only, so switching to App from that tab goes to Home.
   const [mode, setMode] = useState(readMode)
@@ -47,15 +67,31 @@ export default function App() {
   const [syncError, setSyncError] = useState('')
   const [syncTick, setSyncTick] = useState(0)
   useEffect(() => {
-    if (!user) return
+    if (!active) return
     let cancelled = false
     setSyncState('syncing')
-    const KEY = `deca_progress_${user.key}`
+    const KEY = `deca_progress_${active.key}`
+    if (active.viewOnly) {
+      // Fresh read only copy of the student's server record; never saved back.
+      ;(async () => {
+        try {
+          const server = await getProgress(active.key)
+          delete server.empty
+          seedBookmarks(server)   // the student's device does this once at login too
+          localStorage.setItem(KEY, JSON.stringify(server))
+          if (!cancelled) { setSyncState('ok'); setSyncError('') }
+        } catch (e) {
+          if (!cancelled) { setSyncState('error'); setSyncError(e.message || 'Server not reachable') }
+        }
+        if (!cancelled) setSyncTick(t => t + 1)
+      })()
+      return () => { cancelled = true }
+    }
     ;(async () => {
       let local = {}
       try { local = JSON.parse(localStorage.getItem(KEY) || '{}') } catch {}
       try {
-        const server = await getProgress(user.key)
+        const server = await getProgress(active.key)
         const seen = new Set()
         const exams = [...(server.exams || []), ...(local.exams || [])].filter(e => {
           const k = `${e.date}|${e.score}|${e.total}`; if (seen.has(k)) return false; seen.add(k); return true
@@ -74,7 +110,7 @@ export default function App() {
         localStorage.setItem(KEY, JSON.stringify(merged))
         // Push back anything this device had that the server did not.
         if (seeded || Object.keys(local.flashcards || {}).length || Object.keys(local.questions || {}).length || (local.exams || []).length) {
-          await saveProgress(user.key, merged)
+          await saveProgress(active.key, merged)
         }
         if (!cancelled) { setSyncState('ok'); setSyncError('') }
       } catch (e) {
@@ -83,16 +119,16 @@ export default function App() {
       if (!cancelled) setSyncTick(t => t + 1)
     })()
     return () => { cancelled = true }
-  }, [user?.key])
+  }, [active?.key])
 
   // Count active study time once this device has synced with the server.
   useEffect(() => {
-    if (!user || syncTick === 0) return
-    return startUsageTracking(user.key)
-  }, [user?.key, syncTick > 0])
+    if (!active || active.viewOnly || syncTick === 0) return   // viewing someone else is not their study time
+    return startUsageTracking(active.key)
+  }, [active?.key, syncTick > 0])
 
   // Keep the bug report context current. Cards and Exam set the item themselves.
-  useEffect(() => { setReportContext({ user: user?.key || null }) }, [user?.key])
+  useEffect(() => { setReportContext({ user: active?.viewOnly ? `debug (viewing as ${active.viewing})` : (user?.key || null) }) }, [active?.key])
   useEffect(() => { setReportContext({ screen: user ? tab : 'login', item: null }) }, [tab, !!user])
   useEffect(() => {
     if (flashcardsData && questionsData) setReportContext({ content: `${flashcardsData.length} cards, ${questionsData.length} questions` })
@@ -125,19 +161,29 @@ export default function App() {
     </div>
   )
 
+  // Shown at the top of every screen while Debug is viewing as a student.
+  const viewBanner = active.viewOnly && (
+    <div className="bg-amber-100 text-amber-900 text-xs pl-4 pr-14 py-2 flex items-center gap-2 flex-shrink-0">
+      <span className="material-symbols-outlined text-[18px]">visibility</span>
+      <span className="flex-1"><b>Viewing as {active.name}</b> · read only, nothing you do here is saved</span>
+      <button onClick={exitViewAs} className="font-bold bg-amber-900 text-white rounded-full px-3 py-1">Exit</button>
+    </div>
+  )
+
   const screens = {
-    home:    <Home user={user} onTabChange={setTab} cards={flashcardsData} questions={questionsData} />,
-    cards:   <Flashcards user={user} data={flashcardsData} questions={questionsData} />,
-    exam:    <Exam user={user} data={questionsData} cards={flashcardsData} />,
-    profile: <Profile user={user} cards={flashcardsData} questions={questionsData} onLogout={() => { localStorage.removeItem('deca_user'); setUser(null) }} />,
+    home:    <Home user={active} onTabChange={setTab} cards={flashcardsData} questions={questionsData} />,
+    cards:   <Flashcards user={active} data={flashcardsData} questions={questionsData} />,
+    exam:    <Exam user={active} data={questionsData} cards={flashcardsData} />,
+    profile: <Profile user={active} cards={flashcardsData} questions={questionsData} onViewAs={startViewAs}
+               onLogout={active.viewOnly ? exitViewAs : () => { localStorage.removeItem('deca_user'); setUser(null) }} />,
   }
 
   if (mode === 'desktop') return (
     <div className="relative">
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-on-surface-variant text-sm">Loading desktop…</div>}>
-        <DesktopShell user={user} cards={flashcardsData} questions={questionsData} tab={tab} onTabChange={setTab} screens={screens}
+        <DesktopShell user={active} cards={flashcardsData} questions={questionsData} tab={tab} onTabChange={setTab} screens={screens}
           syncState={syncState} syncError={syncError} syncTick={syncTick}
-          mode={mode} onModeChange={changeMode} />
+          mode={mode} onModeChange={changeMode} banner={viewBanner} />
       </Suspense>
       <ReportBug wide />
     </div>
@@ -146,7 +192,8 @@ export default function App() {
   return (
     <div className="flex flex-col relative" style={{ height: '100dvh' }}>
       <ReportBug />
-      {tab === 'home' && modeSwitch}
+      {tab === 'home' && !active.viewOnly && modeSwitch}
+      {viewBanner}
       {syncState === 'error' && (
         <div className="bg-error-container text-on-error-container text-xs px-4 py-2 text-center">
           Progress is not being saved to the server, so it only stays on this device. ({syncError})
@@ -161,12 +208,12 @@ export default function App() {
       <nav className="flex justify-around items-center px-2 pt-2 pb-safe bg-white/70 backdrop-blur-xl border-t border-outline-variant/20 shadow-[0px_-4px_20px_rgba(26,27,33,0.05)] rounded-t-2xl z-50 flex-shrink-0"
            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 8px)' }}>
         {TABS.map(({ key, label, icon }) => {
-          const active = tab === key
+          const on = tab === key
           return (
             <button key={key} onClick={() => setTab(key)}
               className={`flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded-xl transition-all duration-150 active:scale-90 min-w-0
-                ${active ? 'bg-primary/10 text-primary' : 'text-on-surface-variant opacity-70'}`}>
-              <span className={`material-symbols-outlined text-[22px] ${active ? 'sym-filled' : ''}`}>{icon}</span>
+                ${on ? 'bg-primary/10 text-primary' : 'text-on-surface-variant opacity-70'}`}>
+              <span className={`material-symbols-outlined text-[22px] ${on ? 'sym-filled' : ''}`}>{icon}</span>
               <span className="text-[10px] font-semibold uppercase tracking-wider leading-none">{label}</span>
             </button>
           )

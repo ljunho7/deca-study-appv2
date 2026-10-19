@@ -90,6 +90,8 @@ export default async function handler(req, res) {
     if (typeof body === 'string') { try { body = JSON.parse(body) } catch { body = {} } }
     const { user, data } = body || {}
     if (!user || !data) return res.status(400).json({ error: 'Missing user or data' })
+    // Debug's view-as mode works on a copy; it must never be saved (see src/lib/storage.js).
+    if (String(user).startsWith('viewas_')) return res.status(403).json({ error: 'view-only copy, not saved' })
     try {
       const merged = mergeProgress(await readStored(user), data)
       await writeJSON(path(user), merged)
