@@ -100,6 +100,7 @@ export default function App() {
           ...server, ...local,
           flashcards: mergeNewest(local.flashcards || {}, server.flashcards || {}, 'lastReviewed'),
           questions: mergeNewest(local.questions || {}, server.questions || {}, 'last'),
+          rpcards: mergeNewest(local.rpcards || {}, server.rpcards || {}, 'lastReviewed'),
           exams, totalPoints: exams.reduce((s, e) => s + (e.score || 0), 0),
           usage: mergeUsage(server.usage, local.usage),
           bookmarks: mergeBookmarks(server.bookmarks, local.bookmarks),

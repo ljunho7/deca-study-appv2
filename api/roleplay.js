@@ -164,7 +164,9 @@ Transcript: ${clip(attempt.transcript?.text, 15000)}` : ''}`
 // Coach beside the Cards and Exam tabs (desktop). item is the card or
 // question on screen (or null).
 export async function study({ section, item, messages = [] }) {
-  const where = section === 'exam' ? 'practicing Finance cluster exam questions' : 'studying flashcards'
+  const where = section === 'exam' ? 'practicing Finance cluster exam questions'
+    : section === 'rpcards' ? 'studying role play concept cards for the ACT role play (2026-27 regional instructional areas: Financial Analysis and Professional Development). Relate answers to how the concept is used in a role play with a judge. You are given only what is on the screen: if only the term is shown (card not flipped yet), help the student recall it with a hint before explaining'
+    : 'studying flashcards'
   const system = `You are a friendly, expert DECA coach helping a high school student prepare for the Finance cluster exam used by the Accounting Applications Series (ACT). The student is ${where}. Explain in plain language with short, concrete examples. Keep answers focused and reasonably short (short paragraphs or lists). Stay on DECA, accounting, finance and business topics; gently bring the student back if they drift. Do not use dashes as punctuation.${item?.type === 'question' ? `
 
 The exam question on screen is below, with its official answer. The student may not have answered it yet: do not reveal the correct letter or answer unless the student asks for it or says they already answered. Until then, give hints and explain the concepts behind the choices. When you do discuss the answer, explain why it is right and why each other choice is wrong.` : ''}${item ? `

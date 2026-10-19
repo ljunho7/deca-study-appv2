@@ -253,6 +253,87 @@ for (const [id, e] of Object.entries(reg.ids)) {
 if (retired.length && !ACCEPT_RETIRED) errors.push(`RETIRED ROLE PLAY IDS: these were published before and are now missing, so their attempt history would stop showing:\n  ${retired.join('\n  ')}\n  If intended, run: npm run sync-roleplays -- --accept-retired`)
 for (const rp of all) reg.ids[rp.rp_id] = { ...(reg.ids[rp.rp_id] || { since: today }), title: rp.title }
 
+// ── Cards for RP (role play concept cards) ────────────────────────────────
+// Sources: DECA Role play/rp_cards/*.json (one file per batch). Cards are
+// merged by id, checked, given a frequency tier and written to
+// public/rpcards.json. Card ids are permanent (data/rpcard_ids.json).
+//
+// Frequency (1 to 3) comes from evidence in the role play files:
+//   official = official role plays that use the card's concept (rp_ids)
+//   practice = practice scenarios that use it
+//   piTested = official role plays whose PIs include one of the card's PIs
+//   3 (core):      used in 3+ official role plays, or score >= 10, or a
+//                  foundational concept used in at least one official role play
+//   2 (often):     used in 1+ official role play, or 2+ practice scenarios, or its
+//                  PI was tested in 2+ official role plays
+//   1 (sometimes): everything else (on the PI list, rarely used so far)
+//   (about 1 card in 5 is core)
+//   score = 2 x official + practice + piTested
+const RPC_DIR = path.join(ROOT, 'rp_cards')
+const RPC_IDS = 'data/rpcard_ids.json'
+const rpcFiles = fs.existsSync(RPC_DIR) ? fs.readdirSync(RPC_DIR).filter(f => f.endsWith('.json') && !f.startsWith('_')).sort() : []
+// PI names (rp_cards/_pi_list.json, from the ACT PI workbook)
+const piText = new Map((fs.existsSync(path.join(RPC_DIR, '_pi_list.json')) ? JSON.parse(fs.readFileSync(path.join(RPC_DIR, '_pi_list.json'), 'utf8')).pis : []).map(p => [p.code, p.text]))
+for (const r of all) for (const l of r.pi_links || []) if (!piText.has(l.code)) piText.set(l.code, l.text)
+const rpById = new Map(all.map(r => [r.rp_id, r]))
+const piOfficial = new Map()   // PI code -> number of official role plays testing it
+for (const r of all) if (r.kind === 'official') for (const p of new Set((r.pi_links || []).map(l => l.code))) piOfficial.set(p, (piOfficial.get(p) || 0) + 1)
+const rpcards = new Map()
+for (const f of rpcFiles) {
+  const d = JSON.parse(fs.readFileSync(path.join(RPC_DIR, f), 'utf8'))
+  for (const c of d.cards || []) {
+    if (!/^rpc-[a-z0-9-]+$/.test(c.id || '')) { errors.push(`rp card ${f}: bad id ${c.id}`); continue }
+    const prev = rpcards.get(c.id)
+    if (prev) {   // same concept from two batches: keep one card, combine evidence
+      prev.pi_codes = [...new Set([...prev.pi_codes, ...(c.pi_codes || [])])]
+      prev.rp_ids = [...new Set([...prev.rp_ids, ...(c.rp_ids || [])])]
+      prev.foundational = prev.foundational || !!c.foundational
+      warnings.push(`rp card ${c.id} appears in more than one batch; merged (kept ${prev.batch})`)
+      continue
+    }
+    rpcards.set(c.id, { ...c, batch: d.batch || f, pi_codes: [...new Set(c.pi_codes || [])], rp_ids: [...new Set(c.rp_ids || [])] })
+  }
+}
+// rp_cards/_merge.json: { merge: [{ keep, drop: [...], reason }] } folds duplicate
+// concepts written in different batches into one card (PIs and role plays combined).
+const mergeFile = path.join(RPC_DIR, '_merge.json')
+if (fs.existsSync(mergeFile)) {
+  for (const m of JSON.parse(fs.readFileSync(mergeFile, 'utf8')).merge || []) {
+    const keep = rpcards.get(m.keep)
+    if (!keep) { errors.push(`rp card merge: keep id ${m.keep} not found`); continue }
+    for (const id of m.drop || []) {
+      const d = rpcards.get(id)
+      if (!d) { warnings.push(`rp card merge: drop id ${id} not found (already merged?)`); continue }
+      keep.pi_codes = [...new Set([...keep.pi_codes, ...d.pi_codes])]
+      keep.rp_ids = [...new Set([...keep.rp_ids, ...d.rp_ids])]
+      keep.foundational = keep.foundational || !!d.foundational
+      rpcards.delete(id)
+    }
+  }
+}
+for (const c of rpcards.values()) {
+  for (const k of ['term', 'area', 'core', 'detail']) if (!c[k]) errors.push(`rp card ${c.id}: missing ${k}`)
+  c.rp_ids = c.rp_ids.filter(id => { if (rpById.has(id)) return true; warnings.push(`rp card ${c.id}: unknown role play ${id} dropped`); return false })
+  const official = c.rp_ids.filter(id => rpById.get(id).kind === 'official').length
+  const practice = c.rp_ids.length - official
+  const piTested = Math.max(0, ...c.pi_codes.map(p => piOfficial.get(p) || 0))
+  const score = 2 * official + practice + piTested
+  c.frequency = (official >= 3 || score >= 10 || (c.foundational && official >= 1)) ? 3 : (official >= 1 || practice >= 2 || piTested >= 2) ? 2 : 1
+  c.evidence = { official, practice, piTested, score }
+  c.pis = c.pi_codes.map(code => ({ code, text: piText.get(code) || null }))
+  c.examples = c.rp_ids.map(id => { const r = rpById.get(id); return { rp_id: id, kind: r.kind, level: r.level, year: r.year || null, title: r.title } })
+    .sort((a, b) => (a.kind === b.kind ? (b.year || 0) - (a.year || 0) : a.kind === 'official' ? -1 : 1))
+}
+// permanent ids
+const rpcReg = fs.existsSync(RPC_IDS) ? JSON.parse(fs.readFileSync(RPC_IDS, 'utf8')) : { ids: {} }
+const rpcRetired = []
+for (const [id, e] of Object.entries(rpcReg.ids)) {
+  if (rpcards.has(id)) { if (e.retired) delete e.retired; continue }
+  if (!e.retired) { rpcRetired.push(`${id} "${e.term}"`); if (ACCEPT_RETIRED) e.retired = today }
+}
+if (rpcRetired.length && !ACCEPT_RETIRED) errors.push(`RETIRED RP CARD IDS: these cards were published before and are now missing, so their study history would stop showing:\n  ${rpcRetired.join('\n  ')}\n  If intended, run: npm run sync-roleplays -- --accept-retired`)
+for (const c of rpcards.values()) rpcReg.ids[c.id] = { ...(rpcReg.ids[c.id] || { since: today }), term: c.term }
+
 if (errors.length) { console.error(`\n✗ sync-roleplays failed\n  ${errors.join('\n  ')}\n`); process.exit(1) }
 
 // ── Write ─────────────────────────────────────────────────────────────────
@@ -274,11 +355,19 @@ writeIfChanged(path.join(OUT, 'index.json'), {
     pis: rp.performance_indicators, rubric: rp.rubric.format,
   })),
 })
+if (rpcards.size) {
+  const order = { 'Financial Analysis': 0, 'Professional Development': 1 }
+  const list = [...rpcards.values()].sort((a, b) => (order[a.area] ?? 2) - (order[b.area] ?? 2) || String(a.group).localeCompare(String(b.group)) || b.frequency - a.frequency || a.term.localeCompare(b.term))
+    .map(({ batch, ...c }) => c)
+  writeIfChanged('public/rpcards.json', { synced: today, cards: list })
+  writeIfChanged(RPC_IDS, { _readme: 'Written by scripts/sync-roleplays.mjs. Every Cards for RP id ever published. Do not edit; never delete entries.', ids: Object.fromEntries(Object.keys(rpcReg.ids).sort().map(k => [k, rpcReg.ids[k]])) })
+}
 const sorted = Object.fromEntries(Object.keys(reg.ids).sort().map(k => [k, reg.ids[k]]))
 writeIfChanged(IDS, { _readme: 'Written by scripts/sync-roleplays.mjs. Every role play id ever published. Do not edit; never delete entries.', ids: sorted })
 
 const count = (k) => all.filter(r => r.kind === k).length
 const formats = all.reduce((m, r) => (m[r.rubric.format] = (m[r.rubric.format] || 0) + 1, m), {})
+if (rpcards.size) { const t = [1, 2, 3].map(n => [...rpcards.values()].filter(x => x.frequency === n).length); console.log(`Cards for RP: ${rpcards.size} (frequency 3: ${t[2]}, 2: ${t[1]}, 1: ${t[0]}).`) }
 console.log(`✓ ${all.length} role plays synced (${count('official')} official, ${count('practice')} practice). Rubric layouts: ${JSON.stringify(formats)}.`)
 if (retired.length) console.log(`RETIRED ROLE PLAY IDS (recorded ${today}):\n  ${retired.join('\n  ')}`)
 if (warnings.length) console.log(`Warnings:\n  ${warnings.join('\n  ')}`)

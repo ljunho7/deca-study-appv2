@@ -10,7 +10,7 @@ import { setReportContext } from '../lib/report.js'
 
 const scoreTone = (n) => n == null ? 'bg-surface-container text-on-surface-variant' : n >= 75 ? 'bg-secondary/15 text-secondary' : n >= 60 ? 'bg-tertiary-fixed text-on-tertiary-fixed-variant' : 'bg-error-container text-on-error-container'
 
-export default function RolePlay({ user, cards }) {
+export default function RolePlay({ user, cards, openId, onOpened }) {
   const [index, setIndex] = useState(null)
   const [loadError, setLoadError] = useState('')
   const [view, setView] = useState({ screen: 'library' })   // library | study | test | results
@@ -19,6 +19,9 @@ export default function RolePlay({ user, cards }) {
   const [filters, setFilters] = useState({ kind: 'official', level: 'all', area: 'all', status: 'all', q: '' })
   const [open, setOpen] = useState(null)
   const [testKey, setTestKey] = useState(0)
+
+  // Opened from a Cards for RP example: go straight to that role play's Self study.
+  useEffect(() => { if (openId) { openRp(openId, 'study'); onOpened?.() } }, [openId])
 
   const cardsById = useMemo(() => Object.fromEntries((cards || []).map(c => [c.id, c])), [cards])
 

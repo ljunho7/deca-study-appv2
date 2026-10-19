@@ -1,6 +1,7 @@
 import ModeSwitch from '../components/ModeSwitch.jsx'
 import { useState } from 'react'
 import RolePlay from './RolePlay.jsx'
+import RpCards from './RpCards.jsx'
 import StudyCoach from './StudyCoach.jsx'
 
 // Desktop layout: sidebar navigation and a wide content area. Home, Cards,
@@ -12,12 +13,17 @@ export const DESKTOP_TABS = [
   { key: 'home',     label: 'Home',      icon: 'home' },
   { key: 'cards',    label: 'Cards',     icon: 'style' },
   { key: 'exam',     label: 'Exam',      icon: 'edit_note' },
+  { key: 'rpcards',  label: 'Cards for RP', icon: 'school' },
   { key: 'roleplay', label: 'Role Play', icon: 'record_voice_over' },
   { key: 'profile',  label: 'Profile',   icon: 'person' },
 ]
 
 export default function DesktopShell({ user, cards, questions, tab, onTabChange, screens, syncState, syncError, syncTick, mode, onModeChange, banner }) {
-  const content = tab === 'roleplay' ? <RolePlay user={user} cards={cards} /> : screens[tab]
+  // A past role play example on a Cards for RP card opens that role play in Self study.
+  const [rpOpen, setRpOpen] = useState(null)
+  const content = tab === 'roleplay' ? <RolePlay user={user} cards={cards} openId={rpOpen} onOpened={() => setRpOpen(null)} />
+    : tab === 'rpcards' ? <RpCards user={user} onOpenRolePlay={(id) => { setRpOpen(id); onTabChange('roleplay') }} />
+    : screens[tab]
   // Leaving the Role Play tab in the middle of a test would lose it.
   const go = (key) => {
     if (key === tab) return
@@ -28,7 +34,7 @@ export default function DesktopShell({ user, cards, questions, tab, onTabChange,
   // AI coach beside Cards and Exam; can be hidden (remembered per device).
   const [coachOpen, setCoachOpen] = useState(() => { try { return localStorage.getItem('deca_coach_open') !== '0' } catch { return true } })
   const toggleCoach = (open) => { setCoachOpen(open); try { localStorage.setItem('deca_coach_open', open ? '1' : '0') } catch {} }
-  const coachTab = tab === 'cards' || tab === 'exam'
+  const coachTab = tab === 'cards' || tab === 'exam' || tab === 'rpcards'
   // Phone screens are built for a narrow column; give them a comfortable width.
   const width = tab === 'roleplay' ? 'max-w-6xl' : 'max-w-2xl'
 

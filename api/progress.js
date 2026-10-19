@@ -27,6 +27,7 @@ export function mergeProgress(stored, incoming) {
     ...stored, ...incoming,
     flashcards: newest(stored.flashcards, incoming.flashcards, 'lastReviewed'),
     questions: newest(stored.questions, incoming.questions, 'last'),
+    rpcards: newest(stored.rpcards, incoming.rpcards, 'lastReviewed'),   // Cards for RP (desktop)
     exams: uniq,
     totalPoints: uniq.reduce((s, e) => s + (e.score || 0), 0),
     usage: mergeUsage(stored.usage, incoming.usage),

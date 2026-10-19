@@ -4,6 +4,7 @@ import { cardStatus, questionStatus } from '../lib/review.js'
 import { usageByDay, dayKey } from '../lib/usage.js'
 import { attemptsFor } from '../lib/attempts.js'
 import PerformanceDetail from './PerformanceDetail.jsx'
+import { loadRpCards, rpStatus } from '../desktop/rpcardsData.js'
 
 // Read only view of another student's progress, shown on the Debug account's
 // Profile. Reads the same server copy the student's devices sync to.
@@ -34,6 +35,32 @@ const Section = ({ title, children }) => (
     {children}
   </div>
 )
+
+// Cards for RP (desktop tab): studied / known overall, for core cards, and the
+// weakest topic groups. Read only, like everything in this panel.
+function RpCardsSummary({ prog }) {
+  const [data, setData] = useState(null)
+  useEffect(() => { loadRpCards().then(setData).catch(() => {}) }, [])
+  if (!data?.cards.length) return null
+  const rp = prog?.rpcards || {}
+  const studied = (list) => list.filter(c => (rp[c.id]?.reviews || 0) > 0)
+  const known = (list) => list.filter(c => rpStatus(rp[c.id]) === 'known')
+  const core = data.cards.filter(c => c.frequency === 3)
+  const groups = [...new Set(data.cards.map(c => c.group))].map(g => {
+    const list = data.cards.filter(c => c.group === g), st = studied(list)
+    return { g, total: list.length, studied: st.length, known: known(list).length }
+  }).filter(x => x.studied >= 3).sort((a, b) => a.known / a.studied - b.known / b.studied).slice(0, 3)
+  return (
+    <Section title={`Cards for RP · ${studied(data.cards).length} of ${data.cards.length} studied`}>
+      <div className="grid grid-cols-3 gap-1.5">
+        <Stat label="Known" val={known(data.cards).length} color="text-secondary" />
+        <Stat label="★★★ core studied" val={`${studied(core).length}/${core.length}`} />
+        <Stat label="★★★ core known" val={known(core).length} color="text-secondary" />
+      </div>
+      {groups.length > 0 && <p className="text-[11px] text-on-surface-variant mt-2">Weakest groups: {groups.map(x => `${x.g} (${x.known}/${x.studied} known)`).join(', ')}</p>}
+    </Section>
+  )
+}
 
 export default function StudentProgress({ student, cards, questions, onViewAs }) {
   const [prog, setProg]   = useState(null)
@@ -135,6 +162,8 @@ export default function StudentProgress({ student, cards, questions, onViewAs })
               <Stat label="New"       val={qCount('new')} />
             </div>
           </Section>
+
+          <RpCardsSummary prog={prog} />
 
           <Section title="Performance detail">
             <PerformanceDetail prog={prog} cards={cardList} questions={qList} />

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import ChatPanel from './ChatPanel.jsx'
 import { rpCall } from './services.js'
 import { onReportContext } from '../lib/report.js'
+import { loadRpCards } from './rpcardsData.js'
 
 // AI coach beside the Cards and Exam tabs (desktop only). It follows the card
 // or question on screen through the bug report context, which those screens
@@ -9,17 +10,35 @@ import { onReportContext } from '../lib/report.js'
 // need no changes. One conversation per tab, kept on this device.
 
 export default function StudyCoach({ user, kind, cards, questions, onCollapse }) {
-  const [item, setItem] = useState(null)   // { type: 'card' | 'question', id }
+  const [item, setItem] = useState(null)   // { type: 'card' | 'question' | 'rpcard', id, flipped }
   useEffect(() => onReportContext(ctx => {
+    const r = /^rpcard (\S+)/.exec(ctx.item || '')
+    if (r) return setItem({ type: 'rpcard', id: r[1], flipped: !!ctx.view?.flipped })
     const m = /^(card|question) (\d+)/.exec(ctx.item || '')
     setItem(m ? { type: m[1], id: Number(m[2]) } : null)
   }), [])
+  // Cards for RP content (only loaded on that tab)
+  const [rp, setRp] = useState(null)
+  useEffect(() => { if (kind === 'rpcards') loadRpCards().then(setRp).catch(() => {}) }, [kind])
 
   const cardById = useMemo(() => new Map((cards || []).map(c => [c.id, c])), [cards])
   const qById = useMemo(() => new Map((questions || []).map(q => [q.id, q])), [questions])
 
   // What the coach is told about the item on screen.
   const current = useMemo(() => {
+    if (item?.type === 'rpcard') {
+      const c = rp?.byId.get(item.id)
+      if (!c) return null
+      // Only what is on screen: the term until the card is flipped; then the
+      // short line, formula, details and the past role play examples below it.
+      const payload = { type: 'role play concept card', term: c.term, area: c.area, group: c.group, frequency: c.frequency }
+      if (item.flipped) Object.assign(payload, {
+        core: c.core, formula: c.formula, detail: c.detail, example: c.example, say_it: c.say_it, common_mistake: c.mistakes,
+        performance_indicators: (c.pis || []).map(p => `${p.code} ${p.text || ''}`.trim()),
+        past_role_plays: (c.examples || []).map(x => `${x.kind} ${x.level}${x.year ? ' ' + x.year : ''}: ${x.title}`),
+      })
+      return { label: `Card: ${c.term}`, payload }
+    }
     if (item?.type === 'card') {
       const c = cardById.get(item.id)
       if (!c) return null
@@ -39,9 +58,9 @@ export default function StudyCoach({ user, kind, cards, questions, onCollapse })
       }
     }
     return null
-  }, [item, cardById, qById])
+  }, [item, cardById, qById, rp])
 
-  const noun = kind === 'cards' ? 'flashcard' : 'exam question'
+  const noun = kind === 'cards' ? 'flashcard' : kind === 'rpcards' ? 'role play card' : 'exam question'
   return (
     <ChatPanel
       storeKey={`deca_coach_${user.key}_${kind}`}
