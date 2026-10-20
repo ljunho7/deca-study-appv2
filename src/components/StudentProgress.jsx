@@ -62,6 +62,84 @@ function RpCardsSummary({ prog }) {
   )
 }
 
+// One day of activity, opened by tapping a bar in the usage chart. The record
+// keeps only the latest answer time per card or question, so an item counts
+// on the day it was last studied. Usage, exam sessions and role plays carry
+// their own dates.
+function DayDetail({ day, prog, questions, onClose }) {
+  const onDay = (t) => t && dayKey(new Date(t)) === day
+  const isNew = (id) => String(id).startsWith('NF')
+  const fc = prog?.flashcards || {}, qp = prog?.questions || {}, rp = prog?.rpcards || {}
+  // Answered by the student that day (cascade "review" flags are counted apart).
+  const cardsDay = Object.entries(fc).filter(([, e]) => onDay(e.lastReviewed))
+  const cStudied = cardsDay.filter(([, e]) => e.status === 'known' || e.status === 'forgot')
+  const cFlagged = cardsDay.filter(([, e]) => e.status === 'review').length
+  const qDay = Object.entries(qp).filter(([, e]) => onDay(e.last))
+  const qAnswered = qDay.filter(([, e]) => e.status !== 'review')
+  const qFlagged = qDay.length - qAnswered.length
+  const right = (list) => list.filter(([, e]) => e.status === 'easy' || e.status === 'hard').length
+  const split = (list) => [list.filter(([id]) => !isNew(id)), list.filter(([id]) => isNew(id))]
+  const [cMain, cNew] = split(cStudied), [qMain, qNew] = split(qAnswered)
+  const known = (list) => list.filter(([, e]) => e.status === 'known').length
+  // Exam questions by category (main bank), weakest first.
+  const qById = new Map((questions || []).map(q => [String(q.id), q]))
+  const byCat = {}
+  for (const [id, e] of qMain) {
+    const cat = qById.get(id)?.category || 'Other'
+    byCat[cat] ||= { n: 0, right: 0 }
+    byCat[cat].n++; if (e.status === 'easy' || e.status === 'hard') byCat[cat].right++
+  }
+  const cats = Object.entries(byCat).sort((a, b) => a[1].right / a[1].n - b[1].right / b[1].n)
+  const rpDay = Object.entries(rp).filter(([, e]) => onDay(e.lastReviewed))
+  const sessions = (prog?.exams || []).filter(e => onDay(e.date))
+  const rps = attemptsFor(prog?.roleplays).filter(a => onDay(a.at))
+  const usage = usageByDay(prog?.usage)[day] || 0
+  const pct = (a, b) => b ? ` (${Math.round(a / b * 100)}% right)` : ''
+  const Row = ({ label, children }) => <p className="text-xs text-on-surface py-0.5"><span className="font-semibold text-on-surface-variant">{label}:</span> {children}</p>
+  const nothing = !usage && !cStudied.length && !qAnswered.length && !rpDay.length && !sessions.length && !rps.length
+
+  return (
+    <div className="mt-3 bg-surface-container-low rounded-xl p-3">
+      <div className="flex items-center justify-between mb-1.5">
+        <p className="text-xs font-black text-on-surface">{new Date(day + 'T12:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</p>
+        <button onClick={onClose} className="text-[11px] font-bold text-primary">Close</button>
+      </div>
+      {nothing ? <p className="text-xs text-on-surface-variant">No activity this day.</p> : (
+        <>
+          <Row label="Usage">{fmtTime(usage)}</Row>
+          {cMain.length > 0 && <Row label="Cards">{cMain.length} studied, {known(cMain)} known, {cMain.length - known(cMain)} forgot</Row>}
+          {cNew.length > 0 && <Row label="New cards">{cNew.length} studied, {known(cNew)} known, {cNew.length - known(cNew)} forgot</Row>}
+          {qMain.length > 0 && <Row label="Exam">{qMain.length} answered{pct(right(qMain), qMain.length)}</Row>}
+          {qNew.length > 0 && <Row label="New exam">{qNew.length} answered{pct(right(qNew), qNew.length)}</Row>}
+          {rpDay.length > 0 && <Row label="Cards for RP">{rpDay.length} studied, {rpDay.filter(([, e]) => e.status === 'known').length} known</Row>}
+          {(cFlagged > 0 || qFlagged > 0) && <Row label="Flagged for review">{cFlagged} cards, {qFlagged} questions (from linked answers)</Row>}
+          {cats.length > 0 && (
+            <div className="mt-1.5">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-outline mb-0.5">Exam by category</p>
+              {cats.map(([c, v]) => (
+                <p key={c} className="text-xs flex justify-between gap-2"><span className="truncate">{c}</span><span className={`font-bold whitespace-nowrap ${v.right / v.n >= 0.75 ? 'text-secondary' : v.right / v.n >= 0.6 ? 'text-tertiary-container' : 'text-error'}`}>{v.right}/{v.n}</span></p>
+              ))}
+            </div>
+          )}
+          {sessions.length > 0 && (
+            <div className="mt-1.5">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-outline mb-0.5">Practice sessions</p>
+              {sessions.map((e, i) => <p key={i} className="text-xs flex justify-between gap-2"><span className="truncate">{e.set === 'new' ? 'New exam · ' : ''}{e.year && e.year !== 'All years' ? `${e.year} · ` : ''}{e.category}</span><span className="font-bold">{e.pct}% · {e.score}/{e.total}</span></p>)}
+            </div>
+          )}
+          {rps.length > 0 && (
+            <div className="mt-1.5">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-outline mb-0.5">Role play tests</p>
+              {rps.map(a => <p key={a.id} className="text-xs flex justify-between gap-2"><span className="truncate">{a.title}</span><span className="font-bold">{a.grade ? `${a.grade.total}/100` : 'n/a'}</span></p>)}
+            </div>
+          )}
+          <p className="text-[10px] text-outline mt-2">Cards and questions count on the day they were last studied.</p>
+        </>
+      )}
+    </div>
+  )
+}
+
 // New cards / New exam (our own 2026-27 practice content, ids NF27-...).
 function NewContentSummary({ prog }) {
   const [d, setD] = useState(null)
@@ -93,6 +171,7 @@ export default function StudentProgress({ student, cards, questions, onViewAs })
   const [prog, setProg]   = useState(null)
   const [state, setState] = useState('loading')   // loading | ok | error
   const [error, setError] = useState('')
+  const [day, setDay]     = useState(null)    // day picked in the usage chart (YYYY-MM-DD)
 
   async function load() {
     setState('loading')
@@ -157,16 +236,20 @@ export default function StudentProgress({ student, cards, questions, onViewAs })
               <Stat label="7 days" val={fmtTime(weekSec)} />
               <Stat label="All time" val={fmtTime(allSec)} />
             </div>
+            {/* Tap a bar to see that day only. */}
             <div className="flex items-end gap-1.5 h-16">
               {week.map(x => (
-                <div key={x.key} className="flex-1 flex flex-col items-center justify-end h-full" title={`${x.key}: ${fmtTime(x.sec)}`}>
-                  <div className="w-full bg-primary/80 rounded-t" style={{ height: `${Math.max(x.sec ? 6 : 2, x.sec / maxSec * 100)}%`, opacity: x.sec ? 1 : 0.2 }} />
-                </div>
+                <button key={x.key} onClick={() => setDay(day === x.key ? null : x.key)} aria-label={`Show ${x.key}`}
+                  className="flex-1 flex flex-col items-center justify-end h-full cursor-pointer" title={`${x.key}: ${fmtTime(x.sec)}`}>
+                  <div className={`w-full rounded-t ${day === x.key ? 'bg-secondary' : 'bg-primary/80'}`} style={{ height: `${Math.max(x.sec ? 6 : 2, x.sec / maxSec * 100)}%`, opacity: x.sec || day === x.key ? 1 : 0.2 }} />
+                </button>
               ))}
             </div>
             <div className="flex gap-1.5 mt-1">
-              {week.map(x => <span key={x.key} className="flex-1 text-center text-[9px] text-outline">{x.d.toLocaleDateString('en-US', { weekday: 'narrow' })}</span>)}
+              {week.map(x => <span key={x.key} className={`flex-1 text-center text-[9px] ${day === x.key ? 'text-secondary font-bold' : 'text-outline'}`}>{x.d.toLocaleDateString('en-US', { weekday: 'narrow' })}</span>)}
             </div>
+            {day ? <DayDetail day={day} prog={prog} questions={qList} onClose={() => setDay(null)} />
+              : <p className="text-[11px] text-outline mt-1.5">Tap a bar to see that day.</p>}
             {!allSec && <p className="text-[11px] text-on-surface-variant mt-2">Usage time is counted from Sept 29, 2026 on, while the app is open and in use.</p>}
             <p className="text-[11px] text-on-surface-variant mt-2">Last 7 days: {cardsWeek} cards and {qWeek} questions studied.</p>
           </Section>
