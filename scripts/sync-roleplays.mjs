@@ -258,17 +258,13 @@ for (const rp of all) reg.ids[rp.rp_id] = { ...(reg.ids[rp.rp_id] || { since: to
 // merged by id, checked, given a frequency tier and written to
 // public/rpcards.json. Card ids are permanent (data/rpcard_ids.json).
 //
-// Frequency (1 to 3) comes from evidence in the role play files:
-//   official = official role plays that use the card's concept (rp_ids)
-//   practice = practice scenarios that use it
-//   piTested = official role plays whose PIs include one of the card's PIs
-//   3 (core):      used in 3+ official role plays, or score >= 10, or a
-//                  foundational concept used in at least one official role play
-//   2 (often):     used in 1+ official role play, or 2+ practice scenarios, or its
-//                  PI was tested in 2+ official role plays
-//   1 (sometimes): everything else (on the PI list, rarely used so far)
-//   (about 1 card in 5 is core)
-//   score = 2 x official + practice + piTested
+// Frequency (1 to 3) counts only actual (official) role plays linked to the
+// card (rp_ids of kind official). Practice scenarios never raise it, so a
+// concept used only in practice scenarios is always 1.
+//   3 (core):      linked to 3+ official role plays
+//   2 (often):     linked to 1 or 2 official role plays
+//   1 (sometimes): no official role play (practice only, or PI list only)
+// practice and piTested are kept in evidence for display only.
 const RPC_DIR = path.join(ROOT, 'rp_cards')
 const RPC_IDS = 'data/rpcard_ids.json'
 const rpcFiles = fs.existsSync(RPC_DIR) ? fs.readdirSync(RPC_DIR).filter(f => f.endsWith('.json') && !f.startsWith('_')).sort() : []
@@ -319,9 +315,8 @@ for (const c of rpcards.values()) {
   const official = c.rp_ids.filter(id => rpById.get(id).kind === 'official').length
   const practice = c.rp_ids.length - official
   const piTested = Math.max(0, ...c.pi_codes.map(p => piOfficial.get(p) || 0))
-  const score = 2 * official + practice + piTested
-  c.frequency = (official >= 3 || score >= 10 || (c.foundational && official >= 1)) ? 3 : (official >= 1 || practice >= 2 || piTested >= 2) ? 2 : 1
-  c.evidence = { official, practice, piTested, score }
+  c.frequency = official >= 3 ? 3 : official >= 1 ? 2 : 1
+  c.evidence = { official, practice, piTested }
   c.pis = c.pi_codes.map(code => ({ code, text: piText.get(code) || null }))
   c.examples = c.rp_ids.map(id => { const r = rpById.get(id); return { rp_id: id, kind: r.kind, level: r.level, year: r.year || null, title: r.title } })
     .sort((a, b) => (a.kind === b.kind ? (b.year || 0) - (a.year || 0) : a.kind === 'official' ? -1 : 1))

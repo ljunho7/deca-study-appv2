@@ -9,19 +9,18 @@ export function loadRpCards() {
 }
 
 export const FREQ = {
-  3: { stars: '★★★', label: 'Core', hint: 'Core concept, used or tested often' },
-  2: { stars: '★★', label: 'Often', hint: 'Used in a past role play or several practice scenarios, or its PI was tested more than once' },
-  1: { stars: '★', label: 'Sometimes', hint: 'On the PI list, rarely used so far' },
+  3: { stars: '★★★', label: 'Core', hint: 'Used in 3 or more actual (official) role plays' },
+  2: { stars: '★★', label: 'Often', hint: 'Used in 1 or 2 actual (official) role plays' },
+  1: { stars: '★', label: 'Sometimes', hint: 'Not in any actual role play yet (practice scenarios only, or on the PI list)' },
 }
 
 // Status of one card in progress.rpcards: new | forgot | known
 export const rpStatus = (p) => !p ? 'new' : p.status === 'known' ? 'known' : 'forgot'
 
 export function evidenceText(c) {
-  const e = c.evidence || {}, parts = []
-  if (e.official) parts.push(`used in ${e.official} official role play${e.official > 1 ? 's' : ''}`)
-  if (e.practice) parts.push(`${e.practice} practice scenario${e.practice > 1 ? 's' : ''}`)
-  if (e.piTested) parts.push(`its PI was tested in ${e.piTested} official role play${e.piTested > 1 ? 's' : ''}`)
-  if (c.foundational) parts.unshift('foundational concept')
-  return parts.length ? parts.join(', ') : 'on the 2026-27 PI list'
+  // The rating counts official role plays only; practice scenarios are listed
+  // as extra information.
+  const e = c.evidence || {}
+  const base = e.official ? `used in ${e.official} official role play${e.official > 1 ? 's' : ''}` : 'not used in any official role play yet'
+  return e.practice ? `${base} (also ${e.practice} practice scenario${e.practice > 1 ? 's' : ''}, not counted)` : base
 }

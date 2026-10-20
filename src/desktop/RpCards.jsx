@@ -245,7 +245,7 @@ export default function RpCards({ user }) {
           <div className="grid grid-cols-3 gap-2">
             {[3, 2, 1].map(n => <Chip key={n} on={freqs.includes(n)} onClick={() => toggle(freqs, setFreqs, n)} title={`${FREQ[n].stars} ${FREQ[n].label}`} sub={count(c => c.frequency === n)} />)}
           </div>
-          <p className="text-xs text-on-surface-variant mt-1.5">★★★ core: used in 3 or more official role plays (or a foundational idea that official role plays use); ★★ used in a past role play, in several practice scenarios, or its PI was tested more than once; ★ on the 2026-27 PI list but rarely used so far.</p>
+          <p className="text-xs text-on-surface-variant mt-1.5">Counts actual (official) role plays only: ★★★ used in 3 or more; ★★ used in 1 or 2; ★ not used in any official role play yet (practice scenarios do not count).</p>
         </div>
         <div>
           <p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant mb-2">Which cards</p>
