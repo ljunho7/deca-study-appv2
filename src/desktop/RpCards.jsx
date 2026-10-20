@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { saveProgress } from '../lib/storage.js'
 import { setReportContext } from '../lib/report.js'
 import { loadRpCards, FREQ, rpStatus, evidenceText } from './rpcardsData.js'
+import Scenario, { PrintRolePlay } from './Scenario.jsx'
 
 // Cards for RP (desktop): role play concept cards for the 2026-27 regional
 // instructional areas (Financial Analysis, Professional Development).
@@ -25,7 +26,54 @@ const Chip = ({ on, onClick, title, sub, cls = '' }) => (
 )
 const Stars = ({ n }) => <span className="text-amber-500 tracking-tight" title={FREQ[n]?.hint}>{FREQ[n]?.stars}</span>
 
-export default function RpCards({ user, onOpenRolePlay }) {
+// Card text is a list of keyword lines (older content may still be one string).
+const asList = (v) => Array.isArray(v) ? v : v ? [v] : []
+// "Keyword: explanation" shows the keyword in bold.
+function Bullet({ text }) {
+  const i = text.indexOf(': ')
+  if (i > 0 && i <= 45) return <><span className="font-bold text-on-surface">{text.slice(0, i)}:</span> {text.slice(i + 2)}</>
+  return text
+}
+const Bullets = ({ items, cls = 'text-[15px]' }) => (
+  <ul className={`${cls} leading-snug space-y-1.5`}>
+    {asList(items).map((t, i) => <li key={i} className="flex gap-2"><span className="text-primary font-black">•</span><span className="flex-1"><Bullet text={t} /></span></li>)}
+  </ul>
+)
+
+// Past role play in a popup over the card, so the student can close it and keep going.
+function RolePlayPopup({ id, onClose }) {
+  const [rp, setRp] = useState(null)
+  const [err, setErr] = useState('')
+  useEffect(() => {
+    fetch(`/roleplays/${id}.json`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() }).then(setRp).catch(e => setErr(e.message))
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [id])
+  return (
+    <div className="fixed inset-0 z-[55] bg-black/40 flex items-center justify-center p-8" onClick={onClose}>
+      <div className="bg-background rounded-3xl shadow-2xl w-full max-w-4xl max-h-full flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-3 border-b border-surface-container flex-shrink-0">
+          <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Past role play</span>
+          <div className="flex items-center gap-2">
+          {rp && <PrintRolePlay rp={rp} />}
+          <button onClick={onClose} className="flex items-center gap-1 bg-primary text-on-primary font-bold text-sm px-4 py-2 rounded-xl">
+            <span className="material-symbols-outlined text-[18px]">close</span>Close
+          </button>
+          </div>
+        </div>
+        <div className="overflow-y-auto no-scrollbar px-6 py-5">
+          {err ? <p className="text-sm text-error">Could not open this role play ({err}).</p>
+            : rp ? <Scenario rp={rp} showJudge />
+            : <p className="text-sm text-on-surface-variant">Loading…</p>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function RpCards({ user }) {
+  const [popup, setPopup] = useState(null)
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
   const [prog, setProg] = useState(() => readRp(user.key))
@@ -122,7 +170,9 @@ export default function RpCards({ user, onOpenRolePlay }) {
         ) : (
           <>
             <p className="text-[11px] font-extrabold text-on-surface-variant tracking-[0.15em] uppercase mt-6">{card.term}</p>
-            <p className="text-xl font-bold text-on-surface leading-snug mt-4 max-w-xl">{card.core}</p>
+            {asList(card.core).length > 1
+              ? <ul className="mt-4 space-y-1.5 text-left">{asList(card.core).map((t, i) => <li key={i} className="flex gap-2.5 text-xl font-bold text-on-surface leading-snug"><span className="text-primary">•</span>{t}</li>)}</ul>
+              : <p className="text-xl font-bold text-on-surface leading-snug mt-4 max-w-xl">{asList(card.core)[0]}</p>}
             {card.formula && <p className="mt-4 bg-primary/5 text-primary font-semibold rounded-xl px-4 py-2 text-[15px]">{card.formula}</p>}
           </>
         )}
@@ -138,11 +188,11 @@ export default function RpCards({ user, onOpenRolePlay }) {
           <div className="mt-5 bg-surface-container-lowest rounded-2xl p-5 shadow-[0px_2px_8px_rgba(26,27,33,0.04)] space-y-4 text-left">
             <div>
               <p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant mb-1.5">In detail</p>
-              <p className="text-[15px] leading-relaxed">{card.detail}</p>
+              <Bullets items={card.detail} />
             </div>
             {card.example && <div><p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant mb-1.5">Example</p><p className="text-sm leading-relaxed">{card.example}</p></div>}
             {card.say_it && <div className="bg-primary/5 rounded-xl p-3"><p className="text-[11px] font-black uppercase tracking-[0.12em] text-primary mb-1">Say it to the judge</p><p className="text-sm italic">"{card.say_it}"</p></div>}
-            {card.mistakes && <div className="bg-error-container/30 rounded-xl p-3"><p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-error-container mb-1">Common mistake</p><p className="text-sm">{card.mistakes}</p></div>}
+            {card.mistakes && <div className="bg-error-container/30 rounded-xl p-3"><p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-error-container mb-1">Common mistake</p><Bullets items={card.mistakes} cls="text-sm" /></div>}
             {card.pis?.length > 0 && (
               <div>
                 <p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant mb-1.5">Performance indicators</p>
@@ -154,7 +204,7 @@ export default function RpCards({ user, onOpenRolePlay }) {
               {card.examples?.length ? (
                 <div className="space-y-1.5">
                   {card.examples.map(x => (
-                    <button key={x.rp_id} onClick={() => onOpenRolePlay?.(x.rp_id)} className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-container-low hover:bg-surface-container">
+                    <button key={x.rp_id} onClick={() => setPopup(x.rp_id)} className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-container-low hover:bg-surface-container">
                       <span className={`text-[10px] font-bold uppercase ${x.kind === 'official' ? 'text-primary' : 'text-secondary'}`}>{x.kind === 'official' ? 'Official' : 'Practice'}</span>
                       <span className="flex-1 text-sm truncate">{x.title}</span>
                       <span className="text-[11px] text-on-surface-variant whitespace-nowrap">{x.level}{x.year ? ` ${x.year}` : ''}</span>
@@ -168,6 +218,7 @@ export default function RpCards({ user, onOpenRolePlay }) {
           </div>
         </>
       )}
+      {popup && <RolePlayPopup id={popup} onClose={() => setPopup(null)} />}
     </div>
   )
 

@@ -45,7 +45,9 @@ function shuffle(arr) {
   return a
 }
 
-export default function Exam({ user, data, cards }) {
+// set = 'new' for the New exam tab (our own practice questions): its session
+// history is kept apart from the main exam's, and there is no exam year.
+export default function Exam({ user, data, cards, title = 'Practice Exam', set = null }) {
   const [mode,      setMode]      = useState('menu')
   const [category,  setCategory]  = useState('All categories')
   const [year,      setYear]      = useState('All years')
@@ -59,6 +61,7 @@ export default function Exam({ user, data, cards }) {
   const [sync,      setSync]      = useState('saved')
   const [notice,    setNotice]    = useState('')
   const [openCard,  setOpenCard]  = useState(null)
+  const ofSet = (list) => (list || []).filter(e => (e.set || null) === set)
   const pendingRef = useRef(null)
   const sessionRef = useRef(session)
   const PROG_KEY   = `deca_progress_${user.key}`
@@ -86,12 +89,12 @@ export default function Exam({ user, data, cards }) {
   useEffect(() => {
     try {
       const s = JSON.parse(localStorage.getItem(PROG_KEY) || '{}')
-      setHistory(s.exams || [])
+      setHistory(ofSet(s.exams))
       setQprog(s.questions || {})
     } catch {}
     getProgress(user.key).then(s => {
       if (!s) return
-      if (s.exams) setHistory(s.exams)
+      if (s.exams) setHistory(ofSet(s.exams))
       if (s.questions) {
         // Never let an older server copy erase answers already saved on this device.
         let local = {}
@@ -161,6 +164,8 @@ export default function Exam({ user, data, cards }) {
   const poolFor = (cat, f, prog) => inScope(catQuestions(cat)).filter(q => f.includes(statusOf(prog[q.id])))
   const countBy = (list, st) => list.filter(q => statusOf(qprog[q.id]) === st).length
 
+  // Only categories this question set has (New exam has fewer than the main bank).
+  const cats = CATEGORIES.filter((c, i) => i === 0 || (data || []).some(q => q.category === c))
   const catMarked = catQuestions(category).filter(q => isMarked(marks, q.id)).length
   const catList = inScope(catQuestions(category))
   const counts = {
@@ -236,7 +241,7 @@ export default function Exam({ user, data, cards }) {
     if (total === 0) return
     const result = {
       date: new Date().toISOString(), score: s.correct, total,
-      category, year, filter, type: 'practice', pct: Math.round(s.correct / total * 100),
+      category, year, filter, type: 'practice', ...(set ? { set } : {}), pct: Math.round(s.correct / total * 100),
     }
     setSync('saving')
     try {
@@ -246,7 +251,7 @@ export default function Exam({ user, data, cards }) {
       st.questions = pendingRef.current || st.questions || qprog
       pendingRef.current = null
       localStorage.setItem(PROG_KEY, JSON.stringify(st))
-      setHistory(st.exams)
+      setHistory(ofSet(st.exams))
       await saveProgress(user.key, st)
       await updateLeaderboard(user.name, { totalPoints: st.totalPoints, lastExamPct: result.pct })
       setSync('saved')
@@ -265,7 +270,7 @@ export default function Exam({ user, data, cards }) {
         <div className="bg-background px-5 pt-12 pb-5">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-black text-on-surface tracking-tight">Practice Exam</h1>
+              <h1 className="text-2xl font-black text-on-surface tracking-tight">{title}</h1>
               <p className="text-sm text-on-surface-variant mt-0.5">{data ? `${data.length.toLocaleString()} questions available` : 'Loading…'}</p>
             </div>
             <div className="flex items-center gap-1.5 text-sm text-on-surface-variant">
@@ -276,12 +281,14 @@ export default function Exam({ user, data, cards }) {
 
         <div className="px-5 mt-3 space-y-3">
           <div className="bg-surface-container-lowest rounded-2xl p-4 shadow-[0px_2px_8px_rgba(26,27,33,0.04)]">
+            {years.length > 0 && <>
             <p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant mb-2">Exam year</p>
             <select value={year} onChange={e => setYear(e.target.value)}
               className="w-full bg-surface-container-low rounded-xl px-4 py-3 text-on-surface font-semibold text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 border-0 mb-2">
               <option value="All years">All years ({(data || []).length} questions)</option>
               {years.map(y => <option key={y} value={y}>{y} exams ({data.filter(q => String(q.year) === y).length} questions)</option>)}
             </select>
+            </>}
             <p className="text-xs text-on-surface-variant mb-4">
               Category: <span className="font-semibold text-on-surface">{category}</span>
               {category !== 'All categories' && <button onClick={() => setCategory('All categories')} className="ml-2 font-bold text-primary active:opacity-70">Clear</button>}
@@ -334,7 +341,7 @@ export default function Exam({ user, data, cards }) {
             <div>
               <p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant mb-3 mt-1">Category{year !== 'All years' ? ` · ${year} exams` : ''}</p>
               <div className="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-[0px_2px_8px_rgba(26,27,33,0.04)]">
-                {CATEGORIES.map((cat, i) => {
+                {cats.map((cat, i) => {
                   const list = catQuestions(cat)
                   const tot = list.length
                   const inc = countBy(list, 'incorrect')
@@ -349,7 +356,7 @@ export default function Exam({ user, data, cards }) {
                   return (
                     <button key={cat} onClick={() => setCategory(cat)}
                       className={`w-full text-left px-5 py-3.5 active:bg-surface-container-low transition-colors
-                        ${category === cat ? 'bg-primary/5' : ''} ${i < CATEGORIES.length - 1 ? 'border-b border-surface-container' : ''}`}>
+                        ${category === cat ? 'bg-primary/5' : ''} ${i < cats.length - 1 ? 'border-b border-surface-container' : ''}`}>
                       <div className="flex justify-between items-center mb-1.5 gap-2">
                         <span className={`text-sm font-semibold truncate ${category === cat ? 'text-primary' : 'text-on-surface'}`}>{cat}</span>
                         <span className="text-xs text-on-surface-variant whitespace-nowrap">

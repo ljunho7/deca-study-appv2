@@ -144,7 +144,7 @@ export default function Profile({ user, cards, questions, onLogout, onViewAs }) 
                   {e.pct}%
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-on-surface">{e.category}</p>
+                  <p className="text-sm font-semibold text-on-surface">{e.set === 'new' ? 'New exam · ' : ''}{e.category}</p>
                   <p className="text-xs text-on-surface-variant">{new Date(e.date).toLocaleDateString()} · {e.score}/{e.total}</p>
                 </div>
                 <span className={`text-xs font-bold px-2 py-1 rounded-full

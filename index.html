@@ -57,6 +57,16 @@
     body.desktop #root { max-width:none; }
     .no-scrollbar::-webkit-scrollbar{display:none}
     .no-scrollbar{-ms-overflow-style:none;scrollbar-width:none}
+    /* Role play print: only the #rp-print copy is printed, never the app or the AI coach. */
+    #rp-print { display:none; }
+    @media print {
+      body > *:not(#rp-print) { display:none !important; }
+      #rp-print { display:block; padding:0; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+      #rp-print section { box-shadow:none !important; break-inside:auto; }
+      #rp-print h3, #rp-print tr, #rp-print li { break-inside:avoid; }
+      #rp-print .material-symbols-outlined { display:none !important; }
+      @page { margin:14mm; }
+    }
   </style>
 </head>
 <body class="bg-background min-h-screen">

@@ -33,7 +33,8 @@ const CHAPTERS = [
   'Marketing & Strategy', 'PI & 2025 Updates',
 ]
 
-export default function Flashcards({ user, data, questions }) {
+// title: 'New cards' for the New cards tab (our own 2026-27 practice cards).
+export default function Flashcards({ user, data, questions, title = 'Flashcards' }) {
   const [cards, setCards]         = useState([])
   const [progress, setProgress]   = useState({})
   const [chapter, setChapter]     = useState('All chapters')
@@ -174,6 +175,8 @@ export default function Flashcards({ user, data, questions }) {
   const qById = {}
   for (const q of (questions || [])) qById[q.id] = q
   const allKnown   = countBy(cards, 'known')
+  // Only chapters this card set has (New cards has fewer than the main bank).
+  const chapters   = CHAPTERS.filter((ch, i) => i === 0 || cards.some(c => c.chapter === ch))
   const chMarked   = chapterCards(chapter).filter(c => isMarked(marks, c.id)).length
   const chCards    = inScope(chapterCards(chapter))
   const chTotal    = chCards.length
@@ -266,6 +269,7 @@ export default function Flashcards({ user, data, questions }) {
                   </div>
                   {card.type === 'pi' && <div className="text-[10px] font-bold bg-amber-50 text-amber-800 px-3 py-1 rounded-full">★ PI topic</div>}
                   {card.type === 'trend' && <div className="text-[10px] font-bold bg-emerald-50 text-emerald-800 px-3 py-1 rounded-full">🌐 2025/26 trend</div>}
+                  {card.type === 'new2027' && <div className="text-[10px] font-bold bg-sky-50 text-sky-800 px-3 py-1 rounded-full">✎ New practice card{card.pi ? ` · ${card.pi}` : ''}</div>}
                   {card.type === 'exam2026' && <div className="text-[10px] font-bold bg-yellow-50 text-yellow-800 px-3 py-1 rounded-full">★ New from 2026 exams</div>}
                   {statusOf(progress[card.id]) === 'review' && <div className="text-[10px] font-bold bg-violet-50 text-violet-800 px-3 py-1 rounded-full">↻ For review: a related question was missed or felt hard</div>}
                 </div>
@@ -363,7 +367,7 @@ export default function Flashcards({ user, data, questions }) {
       <div className="bg-background px-5 pt-12 pb-5">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-black text-on-surface tracking-tight">Flashcards</h1>
+            <h1 className="text-2xl font-black text-on-surface tracking-tight">{title}</h1>
             <p className="text-sm text-on-surface-variant mt-0.5">{allKnown} of {cards.length} terms known</p>
           </div>
           <div className="flex items-center gap-1.5 text-sm text-on-surface-variant">
@@ -379,7 +383,7 @@ export default function Flashcards({ user, data, questions }) {
           <p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant mb-3">Select chapter</p>
           <select value={chapter} onChange={e => setChapter(e.target.value)}
             className="w-full bg-surface-container-low rounded-xl px-4 py-3 text-on-surface font-semibold text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 border-0 mb-4">
-            {CHAPTERS.map(ch => <option key={ch}>{ch}</option>)}
+            {chapters.map(ch => <option key={ch}>{ch}</option>)}
           </select>
           <div className="grid grid-cols-4 gap-2 mb-4">
             {[
@@ -427,7 +431,7 @@ export default function Flashcards({ user, data, questions }) {
       <div className="px-5 mt-4">
         <p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant mb-3 mt-1">All chapters</p>
         <div className="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-[0px_2px_8px_rgba(26,27,33,0.04)]">
-          {CHAPTERS.slice(1).map((ch, i) => {
+          {chapters.slice(1).map((ch, i) => {
             const chList = cards.filter(c => c.chapter === ch)
             const tot = chList.length
             const kn  = countBy(chList, 'known')
@@ -440,7 +444,7 @@ export default function Flashcards({ user, data, questions }) {
             return (
               <button key={ch} onClick={() => setChapter(ch)}
                 className={`w-full text-left px-5 py-3.5 active:bg-surface-container-low transition-colors
-                  ${chapter === ch ? 'bg-primary/5' : ''} ${i < CHAPTERS.length - 2 ? 'border-b border-surface-container' : ''}`}>
+                  ${chapter === ch ? 'bg-primary/5' : ''} ${i < chapters.length - 2 ? 'border-b border-surface-container' : ''}`}>
                 <div className="flex justify-between items-center mb-1.5 gap-2">
                   <span className="text-sm font-semibold text-on-surface truncate">{ch}</span>
                   <span className="text-xs text-on-surface-variant whitespace-nowrap">

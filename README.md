@@ -15,15 +15,19 @@ Stack: React 18 + Vite, Tailwind via CDN, Vercel serverless functions (Node runt
 
 ## App and Desktop modes
 
-The login page (and Home in app mode) has an **App | Desktop** switch, remembered per device (default App). Desktop mode shows a sidebar with Home, Cards, Exam, **Cards for RP**, **Role Play** and Profile; Home, Cards, Exam and Profile are the same screens as the phone app. Desktop code (`src/desktop/`) is lazy loaded, so phone mode never downloads it.
+The login page (and Home in app mode) has an **App | Desktop** switch, remembered per device (default App). Desktop mode shows a sidebar with Home, Cards, Exam, **New cards**, **New exam**, **Cards for RP**, **Role Play** and Profile; Home, Cards, Exam and Profile are the same screens as the phone app. Desktop code (`src/desktop/`) is lazy loaded, so phone mode never downloads it.
 
 ## AI coach on Cards and Exam (desktop only)
 
 In desktop mode the Cards and Exam tabs have the same AI coach side panel as Role Play Self study (Gemini, `study` action in `api/roleplay.js`). It sees the card or question on screen (with the answer, explanation and linked cards or questions) through the bug report context those screens already set, so the phone screens are unchanged. On the Exam tab it gives hints and does not reveal the answer unless the student asks or has answered. One chat per tab is kept on the device; each question is tagged with the card or question it was asked about. The panel can be hidden and reopened (remembered per device).
 
+## New cards and New exam
+
+136 practice cards and 136 practice questions we wrote for 2026-27 (not from past exams), to train concepts that could be tested. They sit in their own tabs (phone and desktop) and work like Cards and Exam (filters, bookmarks, review cascade, AI coach on desktop). Source: `DECA/new flashcards/generated_flashcards.json` and `DECA/new questions/generated_questions.json`. Run `npm run sync-new` after changing them, then `npm run check-ids-new` (ids NF27-C### / NF27-Q### are permanent, registry `data/new_id_registry.json`).
+
 ## Cards for RP (desktop only)
 
-Concept cards for the 2026-27 regional role play instructional areas, Financial Analysis and Professional Development (624 cards in 39 topic groups). Front: the term. Back: one line to memorize, plus a formula where there is one. Below the card: the detailed explanation, an example, a line to say to the judge, a common mistake, the performance indicators it covers, and past role plays that used it (click to open that role play in Self study).
+Concept cards for the 2026-27 regional role play instructional areas, Financial Analysis and Professional Development (624 cards in 39 topic groups). Front: the term. Back: short keyword lines to memorize, plus a formula where there is one. Below the card: the detailed explanation as bullets, an example, a line to say to the judge, a common mistake, the performance indicators it covers, and past role plays that used it (click to open that role play in a popup; Close returns to the card). Role Play Self study and that popup have a **Print** button that prints only the role play (scenario, tasks, PIs, solution, judge questions, key concepts), not the AI coach.
 
 Each card has a frequency of 1 to 3 (★ Sometimes, ★★ Often, ★★★ Core), computed by the sync: 3 if used in 3 or more official role plays, or a score (2 × official + practice + times its PI was tested) of 10 or more, or a foundational concept used officially at least once; 2 if used officially once, in 2 or more practice scenarios, or its PI was tested twice; otherwise 1. Filters: area, frequency, status (New, Forgot, Known) and topic group.
 

@@ -30,9 +30,11 @@ const args = process.argv.slice(2)
 const opt = (name, def) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : def }
 const ACCEPT_RETIRED = args.includes('--accept-retired')
 const ACCEPT_CHANGED = args.includes('--accept-changed')
+// --string-ids: the New cards / New exam content (ids like NF27-C001).
+const STRING_IDS = args.includes('--string-ids')
 const READ_ONLY = !!process.env.VERCEL || args.includes('--read-only')
 const REG_FILE = opt('--registry', 'data/id_registry.json')
-const WARN_FILE = path.join(path.dirname(REG_FILE), 'id_warnings.txt')
+const WARN_FILE = path.join(path.dirname(REG_FILE), STRING_IDS ? 'new_id_warnings.txt' : 'id_warnings.txt')
 const cards = JSON.parse(fs.readFileSync(opt('--cards', 'public/flashcards.json'), 'utf8'))
 const questions = JSON.parse(fs.readFileSync(opt('--questions', 'public/questions.json'), 'utf8'))
 
@@ -68,7 +70,7 @@ const notes = []
 for (const [kind, list] of [['cards', cards], ['questions', questions]]) {
   const seen = new Set()
   for (const it of list) {
-    if (!Number.isInteger(it.id) || it.id < 0) errors.push(`${kind}: id ${JSON.stringify(it.id)} is not a whole number`)
+    if (STRING_IDS ? !/^NF\d+-[CQ]\d+$/.test(it.id) : (!Number.isInteger(it.id) || it.id < 0)) errors.push(`${kind}: id ${JSON.stringify(it.id)} is not a whole number`)
     if (seen.has(it.id)) errors.push(`${kind}: id ${it.id} is used twice`)
     seen.add(it.id)
   }
@@ -97,7 +99,7 @@ for (const [kind, list] of [['cards', cards], ['questions', questions]]) {
   const entries = reg[kind]
   const live = new Set(list.map(it => String(it.id)))
 
-  if (fresh) {
+  if (fresh && !STRING_IDS) {
     // First run: every id in the data is live. Gaps below the highest id were
     // issued before and removed (hidden duplicates, merged cards); record them
     // as retired so they are never handed to a different item.
@@ -135,7 +137,7 @@ if (retiredNow.length && !ACCEPT_RETIRED) errors.push(`RETIRED IDS: ${retiredNow
 if (changed.length) errors.push(`CHANGED IDS: these ids now hold different content, so old history would attach to the wrong item. Give the new item a new id and put the old one back:\n  ${changed.join('\n  ')}`)
 if (reused.length) errors.push(`REUSED RETIRED IDS: new items must use a new id, never a retired one:\n  ${reused.join('\n  ')}`)
 
-const nextId = (kind) => Math.max(-1, ...Object.keys(reg[kind]).map(Number)) + 1
+const nextId = (kind) => STRING_IDS ? '(authored ids)' : Math.max(-1, ...Object.keys(reg[kind]).map(Number)) + 1
 const lines = []
 if (retiredNow.length && ACCEPT_RETIRED) lines.push(`RETIRED IDS (recorded ${today}, history kept on the server but no longer shown):\n  ${retiredNow.join('\n  ')}`)
 if (revived.length) lines.push(`REVIVED IDS (came back, old history shows again):\n  ${revived.join('\n  ')}`)
@@ -153,7 +155,7 @@ if (errors.length) {
 
 console.log(`✓ id check passed. ${lines.join('\n')}`)
 if (!READ_ONLY) {
-  const sorted = (o) => Object.fromEntries(Object.keys(o).sort((a, b) => a - b).map(k => [k, o[k]]))
+  const sorted = (o) => Object.fromEntries(Object.keys(o).sort((a, b) => STRING_IDS ? a.localeCompare(b) : a - b).map(k => [k, o[k]]))
   // One entry per line keeps the file small and its git diffs readable.
   const block = (o) => Object.entries(sorted(o)).map(([k, v]) => `  ${JSON.stringify(k)}: ${JSON.stringify(v)}`).join(',\n')
   const text = `{\n "_readme": "Written by scripts/check-ids.mjs. Every card and question id ever issued. Do not edit; never delete entries.",\n "cards": {\n${block(reg.cards)}\n },\n "questions": {\n${block(reg.questions)}\n }\n}\n`

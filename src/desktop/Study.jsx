@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import Scenario from './Scenario.jsx'
+import Scenario, { PrintRolePlay } from './Scenario.jsx'
 import ChatPanel from './ChatPanel.jsx'
 import { rpCall } from './services.js'
 
@@ -29,6 +29,7 @@ export default function Study({ user, rp, latestAttempt, cardsById, onBack, onTe
         <button onClick={onBack} className="flex items-center gap-1 text-primary font-bold text-sm"><span className="material-symbols-outlined text-[20px]">arrow_back</span>Role plays</button>
         <div className="flex items-center gap-3">
           <span className="text-xs font-bold uppercase tracking-wider bg-secondary-container/40 text-on-secondary-container px-3 py-1 rounded-full">Self study</span>
+          <PrintRolePlay rp={rp} />
           <button onClick={onTest} className="bg-primary text-on-primary font-bold text-sm px-4 py-2 rounded-xl flex items-center gap-1.5">
             <span className="material-symbols-outlined text-[18px]">timer</span>Take the test
           </button>

@@ -62,6 +62,33 @@ function RpCardsSummary({ prog }) {
   )
 }
 
+// New cards / New exam (our own 2026-27 practice content, ids NF27-...).
+function NewContentSummary({ prog }) {
+  const [d, setD] = useState(null)
+  useEffect(() => {
+    Promise.all([fetch('/new_flashcards.json').then(r => r.json()), fetch('/new_questions.json').then(r => r.json())])
+      .then(([cards, questions]) => setD({ cards, questions })).catch(() => {})
+  }, [])
+  if (!d) return null
+  const fc = prog?.flashcards || {}, qp = prog?.questions || {}
+  const studied = d.cards.filter(c => (fc[c.id]?.reviews || 0) > 0).length
+  const known = d.cards.filter(c => cardStatus(fc[c.id]) === 'known').length
+  const answered = d.questions.filter(q => questionStatus(qp[q.id]) !== 'new')
+  const att = answered.reduce((s, q) => s + (qp[q.id].attempts || 0), 0), cor = answered.reduce((s, q) => s + (qp[q.id].correct || 0), 0)
+  const sessions = (prog?.exams || []).filter(e => e.set === 'new').length
+  return (
+    <Section title="New cards and New exam">
+      <div className="grid grid-cols-4 gap-1.5">
+        <Stat label="Cards studied" val={`${studied}/${d.cards.length}`} />
+        <Stat label="Cards known" val={known} color="text-secondary" />
+        <Stat label="Qs answered" val={`${answered.length}/${d.questions.length}`} />
+        <Stat label="Correct" val={att ? `${Math.round(cor / att * 100)}%` : 'n/a'} color="text-secondary" />
+      </div>
+      <p className="text-[11px] text-on-surface-variant mt-2">{sessions} New exam session{sessions === 1 ? '' : 's'} finished.</p>
+    </Section>
+  )
+}
+
 export default function StudentProgress({ student, cards, questions, onViewAs }) {
   const [prog, setProg]   = useState(null)
   const [state, setState] = useState('loading')   // loading | ok | error
@@ -163,6 +190,8 @@ export default function StudentProgress({ student, cards, questions, onViewAs })
             </div>
           </Section>
 
+          <NewContentSummary prog={prog} />
+
           <RpCardsSummary prog={prog} />
 
           <Section title="Performance detail">
@@ -174,7 +203,7 @@ export default function StudentProgress({ student, cards, questions, onViewAs })
             {recent.map((e, i) => (
               <div key={i} className="flex items-center gap-3 py-1">
                 <p className="flex-1 text-xs text-on-surface">
-                  {e.year && e.year !== 'All years' ? `${e.year} · ` : ''}{e.category}
+                  {e.set === 'new' ? 'New exam · ' : ''}{e.year && e.year !== 'All years' ? `${e.year} · ` : ''}{e.category}
                   <span className="text-on-surface-variant"> · {new Date(e.date).toLocaleDateString()}</span>
                 </p>
                 <span className={`text-sm font-black ${e.pct >= 75 ? 'text-secondary' : e.pct >= 60 ? 'text-tertiary-container' : 'text-error'}`}>{e.pct}%</span>

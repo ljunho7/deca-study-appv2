@@ -14,8 +14,9 @@ export default function StudyCoach({ user, kind, cards, questions, onCollapse })
   useEffect(() => onReportContext(ctx => {
     const r = /^rpcard (\S+)/.exec(ctx.item || '')
     if (r) return setItem({ type: 'rpcard', id: r[1], flipped: !!ctx.view?.flipped })
-    const m = /^(card|question) (\d+)/.exec(ctx.item || '')
-    setItem(m ? { type: m[1], id: Number(m[2]) } : null)
+    // Main bank ids are numbers; New cards / New exam ids are strings (NF27-C001).
+    const m = /^(card|question) (\d+|NF\d+-[CQ]\d+)/.exec(ctx.item || '')
+    setItem(m ? { type: m[1], id: /^\d+$/.test(m[2]) ? Number(m[2]) : m[2] } : null)
   }), [])
   // Cards for RP content (only loaded on that tab)
   const [rp, setRp] = useState(null)
@@ -60,13 +61,15 @@ export default function StudyCoach({ user, kind, cards, questions, onCollapse })
     return null
   }, [item, cardById, qById, rp])
 
-  const noun = kind === 'cards' ? 'flashcard' : kind === 'rpcards' ? 'role play card' : 'exam question'
+  const noun = kind === 'cards' || kind === 'newcards' ? 'flashcard' : kind === 'rpcards' ? 'role play card' : 'exam question'
+  // New cards / New exam use the same coach rules as Cards / Exam.
+  const section = kind === 'newcards' ? 'cards' : kind === 'newexam' ? 'exam' : kind
   return (
     <ChatPanel
       storeKey={`deca_coach_${user.key}_${kind}`}
       contextLabel={current?.label}
       onCollapse={onCollapse}
-      request={async (messages) => (await rpCall('study', { section: kind, item: current?.payload || null, messages })).reply}
+      request={async (messages) => (await rpCall('study', { section, item: current?.payload || null, messages })).reply}
       topBar={
         <p className="px-4 py-2 text-xs text-on-surface-variant border-b border-surface-container truncate">
           {current ? <>Looking at: <span className="font-semibold text-on-surface">{current.label.replace(/^(Card|Question): /, '')}</span></> : `Open a ${noun} and the coach will see it. You can also ask about any DECA topic.`}

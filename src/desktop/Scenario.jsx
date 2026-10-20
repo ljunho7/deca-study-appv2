@@ -5,6 +5,9 @@
 // shows every exhibit plus the judge's key, questions, solution, key concepts
 // and rubric.
 
+import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
+
 export const isJudgeExhibit = (e) => /judge|solution/i.test(e?.title || '')
 
 const Card = ({ title, icon, children, tone = '' }) => (
@@ -127,7 +130,29 @@ export function RubricTable({ rubric }) {
   )
 }
 
-export default function Scenario({ rp, showJudge = false, cardsById, onOpenCard, compact = false }) {
+// Print button: renders a print-only copy of the role play outside the app
+// (#rp-print, see index.html), so the sidebar and AI coach never overlap it.
+// Prints the scenario, tasks, PIs, solution, judge questions and key concepts.
+export function PrintRolePlay({ rp, className = '' }) {
+  const [on, setOn] = useState(false)
+  useEffect(() => {
+    if (!on) return
+    const done = () => setOn(false)
+    window.addEventListener('afterprint', done)
+    const t = setTimeout(() => window.print(), 50)
+    return () => { clearTimeout(t); window.removeEventListener('afterprint', done) }
+  }, [on])
+  return (
+    <>
+      <button onClick={() => setOn(true)} className={`flex items-center gap-1.5 font-bold text-sm px-4 py-2 rounded-xl bg-surface-container-low text-primary hover:bg-surface-container ${className}`}>
+        <span className="material-symbols-outlined text-[18px]">print</span>Print
+      </button>
+      {on && createPortal(<div id="rp-print"><Scenario rp={rp} showJudge print compact /></div>, document.body)}
+    </>
+  )
+}
+
+export default function Scenario({ rp, showJudge = false, cardsById, onOpenCard, compact = false, print = false }) {
   // Exhibits appear inside the scenario, right after the paragraph that
   // mentions them (at_paragraph, set by the sync); their "[...: see exhibits]"
   // / "[Table ...]" markers are removed. Test mode shows only what the
@@ -266,7 +291,7 @@ export default function Scenario({ rp, showJudge = false, cardsById, onOpenCard,
             </Card>
           )}
 
-          <Card title="How this role play is scored" icon="grading"><RubricTable rubric={rp.rubric} /></Card>
+          {!print && <Card title="How this role play is scored" icon="grading"><RubricTable rubric={rp.rubric} /></Card>}
         </>
       )}
     </div>

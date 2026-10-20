@@ -312,7 +312,9 @@ if (fs.existsSync(mergeFile)) {
   }
 }
 for (const c of rpcards.values()) {
-  for (const k of ['term', 'area', 'core', 'detail']) if (!c[k]) errors.push(`rp card ${c.id}: missing ${k}`)
+  for (const k of ['term', 'area', 'core', 'detail']) if (!c[k] || (Array.isArray(c[k]) && !c[k].length)) errors.push(`rp card ${c.id}: missing ${k}`)
+  // core, detail and mistakes are lists of keyword lines (one bullet each).
+  for (const k of ['core', 'detail', 'mistakes']) if (c[k] && !Array.isArray(c[k])) warnings.push(`rp card ${c.id}: ${k} is a sentence, not a list of keyword lines`)
   c.rp_ids = c.rp_ids.filter(id => { if (rpById.has(id)) return true; warnings.push(`rp card ${c.id}: unknown role play ${id} dropped`); return false })
   const official = c.rp_ids.filter(id => rpById.get(id).kind === 'official').length
   const practice = c.rp_ids.length - official

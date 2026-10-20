@@ -20,6 +20,8 @@ const TABS = [
   { key: 'home',    label: 'Home',    icon: 'home' },
   { key: 'cards',   label: 'Cards',   icon: 'style' },
   { key: 'exam',    label: 'Exam',    icon: 'edit_note' },
+  { key: 'newcards', label: 'New cards', icon: 'note_stack_add' },
+  { key: 'newexam',  label: 'New exam',  icon: 'new_releases' },
   { key: 'profile', label: 'Profile', icon: 'person' },
 ]
 
@@ -59,6 +61,9 @@ export default function App() {
   }
   const [flashcardsData, setFlashcardsData] = useState(null)
   const [questionsData, setQuestionsData] = useState(null)
+  // New cards / New exam: our own 2026-27 practice content (npm run sync-new).
+  const [newCards, setNewCards] = useState(null)
+  const [newQuestions, setNewQuestions] = useState(null)
 
   // On login (and on every app start), pull this user's progress from the server
   // and merge it with anything on this device, so a phone, a laptop, and a fresh
@@ -138,6 +143,8 @@ export default function App() {
   useEffect(() => {
     fetch('/flashcards.json').then(r => r.json()).then(setFlashcardsData).catch(() => {})
     fetch('/questions.json').then(r => r.json()).then(setQuestionsData).catch(() => {})
+    fetch('/new_flashcards.json').then(r => r.json()).then(setNewCards).catch(() => {})
+    fetch('/new_questions.json').then(r => r.json()).then(setNewQuestions).catch(() => {})
   }, [])
 
   const modeSwitch = (
@@ -175,6 +182,8 @@ export default function App() {
     home:    <Home user={active} onTabChange={setTab} cards={flashcardsData} questions={questionsData} />,
     cards:   <Flashcards user={active} data={flashcardsData} questions={questionsData} />,
     exam:    <Exam user={active} data={questionsData} cards={flashcardsData} />,
+    newcards: <Flashcards key="newcards" title="New cards" user={active} data={newCards} questions={newQuestions} />,
+    newexam:  <Exam key="newexam" title="New exam" set="new" user={active} data={newQuestions} cards={newCards} />,
     profile: <Profile user={active} cards={flashcardsData} questions={questionsData} onViewAs={startViewAs}
                onLogout={active.viewOnly ? exitViewAs : () => { localStorage.removeItem('deca_user'); setUser(null) }} />,
   }
@@ -182,7 +191,7 @@ export default function App() {
   if (mode === 'desktop') return (
     <div className="relative">
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-on-surface-variant text-sm">Loading desktop…</div>}>
-        <DesktopShell user={active} cards={flashcardsData} questions={questionsData} tab={tab} onTabChange={setTab} screens={screens}
+        <DesktopShell user={active} cards={flashcardsData} questions={questionsData} newCards={newCards} newQuestions={newQuestions} tab={tab} onTabChange={setTab} screens={screens}
           syncState={syncState} syncError={syncError} syncTick={syncTick}
           mode={mode} onModeChange={changeMode} banner={viewBanner} />
       </Suspense>
