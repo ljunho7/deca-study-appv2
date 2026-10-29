@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { getProgress } from '../lib/storage.js'
 import { cardStatus, questionStatus } from '../lib/review.js'
 import { usageByDay, dayKey } from '../lib/usage.js'
-import { attemptsFor } from '../lib/attempts.js'
 import PerformanceDetail from './PerformanceDetail.jsx'
 import { loadRpCards, rpStatus } from '../desktop/rpcardsData.js'
 
@@ -64,8 +63,7 @@ function RpCardsSummary({ prog }) {
 
 // One day of activity, opened by tapping a bar in the usage chart. The record
 // keeps only the latest answer time per card or question, so an item counts
-// on the day it was last studied. Usage, exam sessions and role plays carry
-// their own dates.
+// on the day it was last studied. Usage time is exact per day.
 function DayDetail({ day, prog, questions, onClose }) {
   const onDay = (t) => t && dayKey(new Date(t)) === day
   const isNew = (id) => String(id).startsWith('NF')
@@ -91,12 +89,10 @@ function DayDetail({ day, prog, questions, onClose }) {
   }
   const cats = Object.entries(byCat).sort((a, b) => a[1].right / a[1].n - b[1].right / b[1].n)
   const rpDay = Object.entries(rp).filter(([, e]) => onDay(e.lastReviewed))
-  const sessions = (prog?.exams || []).filter(e => onDay(e.date))
-  const rps = attemptsFor(prog?.roleplays).filter(a => onDay(a.at))
   const usage = usageByDay(prog?.usage)[day] || 0
   const pct = (a, b) => b ? ` (${Math.round(a / b * 100)}% right)` : ''
   const Row = ({ label, children }) => <p className="text-xs text-on-surface py-0.5"><span className="font-semibold text-on-surface-variant">{label}:</span> {children}</p>
-  const nothing = !usage && !cStudied.length && !qAnswered.length && !rpDay.length && !sessions.length && !rps.length
+  const nothing = !usage && !cStudied.length && !qAnswered.length && !rpDay.length
 
   return (
     <div className="mt-3 bg-surface-container-low rounded-xl p-3">
@@ -121,18 +117,6 @@ function DayDetail({ day, prog, questions, onClose }) {
               ))}
             </div>
           )}
-          {sessions.length > 0 && (
-            <div className="mt-1.5">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-outline mb-0.5">Practice sessions</p>
-              {sessions.map((e, i) => <p key={i} className="text-xs flex justify-between gap-2"><span className="truncate">{e.set === 'new' ? 'New exam · ' : ''}{e.year && e.year !== 'All years' ? `${e.year} · ` : ''}{e.category}</span><span className="font-bold">{e.pct}% · {e.score}/{e.total}</span></p>)}
-            </div>
-          )}
-          {rps.length > 0 && (
-            <div className="mt-1.5">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-outline mb-0.5">Role play tests</p>
-              {rps.map(a => <p key={a.id} className="text-xs flex justify-between gap-2"><span className="truncate">{a.title}</span><span className="font-bold">{a.grade ? `${a.grade.total}/100` : 'n/a'}</span></p>)}
-            </div>
-          )}
           <p className="text-[10px] text-outline mt-2">Cards and questions count on the day they were last studied.</p>
         </>
       )}
@@ -153,7 +137,6 @@ function NewContentSummary({ prog }) {
   const known = d.cards.filter(c => cardStatus(fc[c.id]) === 'known').length
   const answered = d.questions.filter(q => questionStatus(qp[q.id]) !== 'new')
   const att = answered.reduce((s, q) => s + (qp[q.id].attempts || 0), 0), cor = answered.reduce((s, q) => s + (qp[q.id].correct || 0), 0)
-  const sessions = (prog?.exams || []).filter(e => e.set === 'new').length
   return (
     <Section title="New cards and New exam">
       <div className="grid grid-cols-4 gap-1.5">
@@ -162,12 +145,13 @@ function NewContentSummary({ prog }) {
         <Stat label="Qs answered" val={`${answered.length}/${d.questions.length}`} />
         <Stat label="Correct" val={att ? `${Math.round(cor / att * 100)}%` : 'n/a'} color="text-secondary" />
       </div>
-      <p className="text-[11px] text-on-surface-variant mt-2">{sessions} New exam session{sessions === 1 ? '' : 's'} finished.</p>
     </Section>
   )
 }
 
-export default function StudentProgress({ student, cards, questions, onViewAs }) {
+// self: the student's own Profile. It reads this device's copy of the record
+// (the freshest; it is synced to the server) and shows no Debug-only controls.
+export default function StudentProgress({ student, cards, questions, onViewAs, self = false }) {
   const [prog, setProg]   = useState(null)
   const [state, setState] = useState('loading')   // loading | ok | error
   const [error, setError] = useState('')
@@ -175,7 +159,11 @@ export default function StudentProgress({ student, cards, questions, onViewAs })
 
   async function load() {
     setState('loading')
-    try { setProg(await getProgress(student.key)); setState('ok') }
+    try {
+      let local = null
+      if (self) { try { local = JSON.parse(localStorage.getItem(`deca_progress_${student.key}`) || 'null') } catch {} }
+      setProg(local || await getProgress(student.key)); setState('ok')
+    }
     catch (e) { setError(e.message || 'Could not load'); setState('error') }
   }
   useEffect(() => { load() }, [student.key])
@@ -202,15 +190,12 @@ export default function StudentProgress({ student, cards, questions, onViewAs })
   const cardsWeek = Object.values(fc).filter(e => (e.lastReviewed || 0) >= since).length
   const qWeek = Object.values(qp).filter(e => (e.last || 0) >= since).length
 
-  const exams = prog?.exams || []
-  const recent = exams.slice(-3).reverse()
-  const avg = exams.length ? Math.round(exams.slice(-5).reduce((s, e) => s + (e.pct || 0), 0) / Math.min(exams.length, 5)) : null
 
   return (
     <div className="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-[0px_2px_8px_rgba(26,27,33,0.04)]">
       <div className="px-5 py-3.5 border-b border-surface-container flex items-center justify-between">
         <div>
-          <p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant">{student.name}'s progress</p>
+          <p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant">{self ? 'My progress' : `${student.name}'s progress`}</p>
           {state === 'ok' && <p className="text-[11px] text-on-surface-variant mt-0.5">Last active {ago(prog?.lastActive)}</p>}
         </div>
         <div className="flex items-center gap-3">
@@ -281,39 +266,6 @@ export default function StudentProgress({ student, cards, questions, onViewAs })
             <PerformanceDetail prog={prog} cards={cardList} questions={qList} />
           </Section>
 
-          <Section title={`Practice sessions · ${exams.length}${avg != null ? ` · last 5 avg ${avg}%` : ''}`}>
-            {recent.length === 0 && <p className="text-xs text-on-surface-variant">No finished sessions yet.</p>}
-            {recent.map((e, i) => (
-              <div key={i} className="flex items-center gap-3 py-1">
-                <p className="flex-1 text-xs text-on-surface">
-                  {e.set === 'new' ? 'New exam · ' : ''}{e.year && e.year !== 'All years' ? `${e.year} · ` : ''}{e.category}
-                  <span className="text-on-surface-variant"> · {new Date(e.date).toLocaleDateString()}</span>
-                </p>
-                <span className={`text-sm font-black ${e.pct >= 75 ? 'text-secondary' : e.pct >= 60 ? 'text-tertiary-container' : 'text-error'}`}>{e.pct}%</span>
-                <span className="text-[11px] text-on-surface-variant">{e.score}/{e.total}</span>
-              </div>
-            ))}
-          </Section>
-
-          {(() => {
-            // Role play tests (desktop), kept permanently in the progress record.
-            const rps = attemptsFor(prog.roleplays)
-            const scored = rps.filter(a => a.grade)
-            const avgRp = scored.length ? Math.round(scored.slice(0, 5).reduce((s, a) => s + a.grade.total, 0) / Math.min(scored.length, 5)) : null
-            return (
-              <Section title={`Role play tests · ${rps.length}${avgRp != null ? ` · last 5 avg ${avgRp}/100` : ''}`}>
-                {rps.length === 0 && <p className="text-xs text-on-surface-variant">No role play tests yet (desktop only).</p>}
-                {rps.slice(0, 5).map(a => (
-                  <div key={a.id} className="flex items-center gap-3 py-1">
-                    <p className="flex-1 text-xs text-on-surface min-w-0 truncate" title={a.title}>
-                      {a.title}<span className="text-on-surface-variant"> · {new Date(a.at).toLocaleDateString()}</span>
-                    </p>
-                    <span className={`text-sm font-black ${!a.grade ? 'text-outline' : a.grade.total >= 75 ? 'text-secondary' : a.grade.total >= 60 ? 'text-tertiary-container' : 'text-error'}`}>{a.grade ? a.grade.total : 'n/a'}</span>
-                  </div>
-                ))}
-              </Section>
-            )
-          })()}
         </>
       )}
     </div>
