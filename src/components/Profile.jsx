@@ -102,26 +102,6 @@ export default function Profile({ user, cards, questions, onLogout, onViewAs }) 
           : <StudentProgress self student={user} cards={cards} questions={questions} />}
         {user.key === ADMIN_KEY && <Reports />}
 
-        {/* About */}
-        <div className="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-[0px_2px_8px_rgba(26,27,33,0.04)]">
-          <div className="px-5 py-3.5 border-b border-surface-container">
-            <p className="text-[11px] font-black uppercase tracking-[0.12em] text-on-surface-variant">About</p>
-          </div>
-          {[
-            { icon:'menu_book', label:'Study guide',  val:'1,771 terms · 14 chapters' },
-            { icon:'quiz',      label:'Question bank', val:'3,080 questions' },
-            { icon:'fact_check',label:'PI coverage',  val:'Business Admin Core + Finance' },
-          ].map(({ icon, label, val }) => (
-            <div key={label} className="px-5 py-3.5 flex items-center gap-3 border-b border-surface-container last:border-0">
-              <span className="material-symbols-outlined text-on-surface-variant text-[20px]">{icon}</span>
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-on-surface">{label}</p>
-                <p className="text-xs text-on-surface-variant">{val}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
         {/* Sign out */}
         <button onClick={onLogout}
           className="w-full bg-surface-container-lowest border border-error/20 text-error font-semibold py-4 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all">
