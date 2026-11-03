@@ -28,7 +28,7 @@ git push origin main   # Vercel builds automatically
 
 ## Data model
 
-- `public/questions.json`: 3,080 active questions. 484 near-duplicate copies are hidden (text never edited; most recent exam year kept). Each has `cards: [ids]`.
+- `public/questions.json`: 3,079 active questions. 484 near-duplicate copies are hidden, and question 1923 is hidden as outdated (Nov 2026; Status "Hidden (outdated)" in the workbook, id retired) (text never edited; most recent exam year kept). Each has `cards: [ids]`.
 - `public/flashcards.json`: 1,771 cards. Each has `questions: [ids]`. Types: `standard`, `pi`, `trend`, `exam2026`.
 - Links are many-to-many (4,077 links). Every active question links to at least one card. 261 cards teach study-guide concepts no question in the bank tests; that is intentional.
 - Card 761 deliberately teaches both official answers for "first step in project planning" (identify stakeholders vs. define purpose and scope) because different exams key it differently.
